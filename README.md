@@ -136,6 +136,41 @@ Para cortarlo: **Desconectar** (y quitalo también en Vercel). Si suspendés una
 
 ---
 
+---
+
+## Cobro automático con Mercado Pago (suscripciones)
+
+El vendedor elige su plan en **Panel → Mi plan** y paga con Mercado Pago. El cobro se repite todos los meses solo, y el sistema actualiza su plan y estado automáticamente.
+
+1. **Credenciales:** entrá a <https://www.mercadopago.com.ar/developers/panel> → *Tus integraciones* → *Crear aplicación* (tipo: Suscripciones) → copiá el **Access Token de producción**.
+2. **Vercel → Settings → Environment Variables:**
+   - `MP_ACCESS_TOKEN` = el Access Token.
+   - `FIREBASE_SERVICE_ACCOUNT` = el contenido completo del archivo `.json` de la cuenta de servicio de Firebase (Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada).
+3. **Notificaciones:** en tu aplicación de Mercado Pago → *Webhooks* → URL de producción: `https://TU-DOMINIO/api/mp/webhook` → eventos **Planes y suscripciones**. Guardá.
+4. **Precios:** en **Administración → Precios**, cada plan tiene “Cobro mensual automático ($)”. Si está en 0, ese plan no se cobra por Mercado Pago (por ejemplo, “A medida”).
+5. Redeploy en Vercel.
+
+Qué pasa después: cuando el vendedor autoriza el pago, su plan pasa a ese plan y queda activo. Cada cobro mensual queda registrado (Administración → Vendedores → el vendedor). Si la suscripción se pausa o cancela, el vendedor ve un aviso en su panel y vos lo ves en Administración; la suspensión de la cuenta la decidís vos.
+
+**Límites de cada plan** (Administración → Precios): máximo de marcas, máximo de clientes activos y si incluye dominio propio (0 = sin límite). Durante la prueba gratis no hay límites.
+
+---
+
+## Condiciones comerciales
+
+- **Por marca** (Marcas → la marca): bonificación general, plazo, mínimo, flete, **formas de pago con descuento o recargo** (ej.: Contado 5, 90 días −3) y **escalas por monto** (ej.: desde $ 1.000.000 de lista, 3% extra).
+- **Por cliente** (Clientes → el cliente → Condiciones especiales): para cada marca, bonificación propia, bonificación adicional, mínimo y plazo. Lo que queda vacío usa lo general.
+- Las bonificaciones se aplican **en cascada** (10% + 5% = 14,5%) y cada pedido guarda el detalle del cálculo.
+
+---
+
+## Datos de tu empresa y sitios de vendedores
+
+- **Administración → Empresa:** razón social, CUIT, contacto, redes, términos y privacidad. Aparecen en el pie de página de la plataforma y en `/terminos` y `/privacidad`.
+- **Panel → Mi sitio:** cada vendedor edita su portada (foto, título, bajada), quiénes somos, qué ofrece, contacto, datos fiscales y redes. Todo se ve en su sitio y en su pie de página.
+
+---
+
 ## Cómo está organizada la información (Firestore)
 
 ```
@@ -144,12 +179,14 @@ users/{uid}                      → rol de cada usuario: vendedor o cliente
 slugs/{direccion}                → dirección /v/... de cada vendedor
 domains/{dominio}                → dominio propio → vendedor (sólo lo escribe el admin)
 leads/{id}                       → interesados de la página de venta
-config/pricing                   → precios y días de prueba (se editan en Administración → Precios)
+config/pricing                   → planes, precios, límites y días de prueba (Administración → Precios)
+config/company                   → datos de tu empresa y textos legales (Administración → Empresa)
 vendors/{uid}                    → datos del vendedor, plan, estado y dominio
   ├─ brands/{id}                 → marcas, condiciones y comisión
   ├─ products/{id}               → artículos (sólo los ven clientes aprobados)
   ├─ clients/{id}                → clientes (los registrados usan su UID)
-  ├─ orders/{id}                 → pedidos, comprobantes y comisión
+  ├─ orders/{id}                 → pedidos, comprobantes, detalle de bonificaciones y comisión
+  ├─ payments/{id}               → cobros de la suscripción (los escribe el servidor)
   └─ counters/orders             → numeración de pedidos
 ```
 

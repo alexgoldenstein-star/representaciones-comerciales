@@ -11,6 +11,9 @@ import Catalog from './Catalog';
 import Clients from './Clients';
 import Commissions from './Commissions';
 import MySite from './MySite';
+import MyPlan from './MyPlan';
+import { usePricing, planLimits } from '../lib/siteConfig';
+import { today } from '../lib/format';
 
 const Ctx = createContext(null);
 export const usePanel = () => useContext(Ctx);
@@ -23,6 +26,7 @@ export const NAV = [
   { to: '/panel/clientes', l: 'Clientes', i: 'clients' },
   { to: '/panel/comisiones', l: 'Comisiones', i: 'money' },
   { to: '/panel/mi-sitio', l: 'Mi sitio', i: 'site' },
+  { to: '/panel/plan', l: 'Mi plan', i: 'card' },
 ];
 
 export default function Panel() {
@@ -34,6 +38,7 @@ export default function Panel() {
   const products = useCol(`vendors/${vid}/products`);
   const clients = useCol(`vendors/${vid}/clients`);
   const [more, setMore] = useState(false);
+  const { pricing } = usePricing();
 
   if (vendor.loading) return <Loading />;
   if (!vendor.data) return <Navigate to="/registro" replace />;
@@ -41,7 +46,8 @@ export default function Panel() {
   const sortedBrands = [...brands.data].sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.name.localeCompare(b.name));
   const pending = orders.data.filter(o => o.status === 'recibido').length;
   const pendingClients = clients.data.filter(c => c.status === 'pendiente').length;
-  const ctx = { vid, v, orders: orders.data, brands: sortedBrands, products: products.data, clients: clients.data, loading: orders.loading || brands.loading };
+  const limits = planLimits(pricing, v.plan);
+  const ctx = { vid, v, pricing, limits, orders: orders.data, brands: sortedBrands, products: products.data, clients: clients.data, loading: orders.loading || brands.loading };
   const badge = to => (to === '/panel/pedidos' ? pending : to === '/panel/clientes' ? pendingClients : 0);
   const siteUrl = `/v/${v.slug}`;
 
@@ -82,9 +88,19 @@ export default function Panel() {
               <b style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.business}</b>
             </div>
           </div>
-          {v.plan === 'prueba' && v.trialEnds && (
+          {v.plan === 'prueba' && v.trialEnds && v.trialEnds >= today() && (
             <div style={{ background: 'var(--accent-soft)', padding: '10px 20px', fontSize: 16, textAlign: 'center' }}>
-              Estás usando la <b>prueba gratis</b> hasta el {v.trialEnds.split('-').reverse().join('/')}.
+              Estás usando la <b>prueba gratis</b> hasta el {v.trialEnds.split('-').reverse().join('/')}. <Link to="/panel/plan"><b>Elegir un plan</b></Link>
+            </div>
+          )}
+          {v.plan === 'prueba' && v.trialEnds && v.trialEnds < today() && (
+            <div style={{ background: 'var(--bad-soft)', padding: '12px 20px', fontSize: 17, textAlign: 'center' }}>
+              <b>Tu prueba gratis terminó.</b> Para seguir usando la plataforma, <Link to="/panel/plan"><b>elegí un plan</b></Link>.
+            </div>
+          )}
+          {v.subscription && ['paused', 'cancelled'].includes(v.subscription.status) && (
+            <div style={{ background: 'var(--bad-soft)', padding: '12px 20px', fontSize: 17, textAlign: 'center' }}>
+              <b>Tu suscripción está {v.subscription.status === 'paused' ? 'pausada' : 'cancelada'}.</b> <Link to="/panel/plan"><b>Revisá tu plan</b></Link>.
             </div>
           )}
           <div className="content">
@@ -96,6 +112,7 @@ export default function Panel() {
               <Route path="clientes" element={<Clients />} />
               <Route path="comisiones" element={<Commissions />} />
               <Route path="mi-sitio" element={<MySite />} />
+              <Route path="plan" element={<MyPlan />} />
               <Route path="*" element={<Navigate to="/panel" replace />} />
             </Routes>
           </div>

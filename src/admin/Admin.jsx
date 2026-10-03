@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { collection, deleteDoc, doc, getCountFromServer, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
-import { DEFAULT_PRICING, usePricing } from '../lib/siteConfig';
+import { DEFAULT_PRICING, usePricing, useCompany, DEFAULT_COMPANY } from '../lib/siteConfig';
 import { db, firebaseConfig } from '../firebase';
 import { useAuth } from '../lib/auth';
 import { useCol } from '../lib/hooks';
@@ -22,6 +22,7 @@ export default function Admin() {
     { to: '/admin/dominios', l: 'Dominios', i: 'site', n: pendingDomains },
     { to: '/admin/interesados', l: 'Interesados', i: 'inbox', n: newLeads },
     { to: '/admin/precios', l: 'Precios', i: 'money', n: 0 },
+    { to: '/admin/empresa', l: 'Empresa', i: 'file', n: 0 },
   ];
   return (
     <div className="app">
@@ -41,6 +42,7 @@ export default function Admin() {
             <Route path="dominios" element={<Domains vendors={vendors.data} domains={domains.data} />} />
             <Route path="interesados" element={<Leads leads={leads.data} />} />
             <Route path="precios" element={<Pricing />} />
+            <Route path="empresa" element={<Company />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>
         </div>
@@ -55,7 +57,7 @@ function Vendors({ vendors }) {
   const [f, setF] = useState('todos');
   const [open, setOpen] = useState(null);
   const list = useMemo(() => vendors
-    .filter(v => f === 'todos' || v.status === f || v.plan === f)
+    .filter(v => f === 'todos' || v.status === f || v.plan === f || (f === 'vencida' && v.plan === 'prueba' && v.trialEnds && v.trialEnds < new Date().toISOString().slice(0, 10)) || (f === 'mp' && v.subscription?.status === 'authorized'))
     .filter(v => !q || [v.business, v.name, v.email, v.slug, v.domain].join(' ').toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => tsDate(b.createdAt).localeCompare(tsDate(a.createdAt))), [vendors, q, f]);
   const count = k => vendors.filter(v => v.status === k || v.plan === k).length;
@@ -68,7 +70,7 @@ function Vendors({ vendors }) {
         <div className="card kpi"><span className="label">Pagando</span><span className="v">{vendors.filter(v => ['inicial', 'profesional', 'agencia'].includes(v.plan) && v.status === 'activo').length}</span></div>
         <div className="card kpi"><span className="label">Suspendidos</span><span className="v">{count('suspendido')}</span></div>
       </div>
-      <div className="filters">{[['todos', 'Todos'], ['activo', 'Activos'], ['prueba', 'En prueba'], ['suspendido', 'Suspendidos']].map(([k, l]) => <button key={k} className={'fbtn ' + (f === k ? 'on' : '')} onClick={() => setF(k)}>{l}</button>)}</div>
+      <div className="filters">{[['todos', 'Todos'], ['activo', 'Activos'], ['prueba', 'En prueba'], ['vencida', 'Prueba vencida'], ['mp', 'Pagando por Mercado Pago'], ['suspendido', 'Suspendidos']].map(([k, l]) => <button key={k} className={'fbtn ' + (f === k ? 'on' : '')} onClick={() => setF(k)}>{l}</button>)}</div>
       <Field label="Buscar"><input id="a-q" className="input" placeholder="Nombre, email, dirección o dominio" value={q} onChange={e => setQ(e.target.value)} /></Field>
       <div className="card">
         {list.length === 0 ? <Empty title="No hay vendedores para mostrar" /> : (
@@ -77,6 +79,7 @@ function Vendors({ vendors }) {
               <div className="me" style={{ padding: 0 }}><div className="logo" style={{ background: v.color }}>{v.logoUrl ? <img src={v.logoUrl} alt="" /> : initials(v.business)}</div></div>
               <div className="grow"><div className="t">{v.business}</div><div className="s">{v.name} · {v.email} · /v/{v.slug}{v.domain ? ' · ' + v.domain : ''}</div></div>
               <span className="pill plain hide-m">{PLANS[v.plan] || v.plan}</span>
+              {v.subscription && <span className={'pill hide-m ' + (v.subscription.status === 'authorized' ? 'activo' : v.subscription.status === 'pending' ? 'pendiente' : 'suspendido')}>{v.subscription.status === 'authorized' ? 'MP al día' : v.subscription.status === 'pending' ? 'MP pendiente' : 'MP ' + v.subscription.status}</span>}
               <Pill k={v.status}>{v.status === 'activo' ? 'Activo' : 'Suspendido'}</Pill>
             </button>
           ))}</div>
@@ -135,6 +138,16 @@ function VendorDrawer({ v, onClose }) {
         <Field label="Plan"><select id="v-pl" className="input" value={f.plan} onChange={e => setF({ ...f, plan: e.target.value })}>{Object.entries(PLANS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
         <Field label="Prueba gratis hasta"><input id="v-tr" className="input" type="date" value={f.trialEnds} onChange={e => setF({ ...f, trialEnds: e.target.value })} /></Field>
       </div>
+      <section className="card pad stack" style={{ background: 'var(--surface-2)' }}>
+        <h3>Cobro con Mercado Pago</h3>
+        {v.subscription ? <dl className="dl">
+          <dt>Estado</dt><dd>{({ authorized: 'Activa', pending: 'Pendiente de autorizar', paused: 'Pausada', cancelled: 'Cancelada' })[v.subscription.status] || v.subscription.status}</dd>
+          <dt>Plan</dt><dd>{v.subscription.planName || v.subscription.planKey}</dd>
+          <dt>Monto</dt><dd>$ {Number(v.subscription.amount || 0).toLocaleString('es-AR')}</dd>
+          {v.subscription.nextPaymentDate && <><dt>Próximo cobro</dt><dd>{fdate(v.subscription.nextPaymentDate.slice(0, 10))}</dd></>}
+          {v.lastPayment && <><dt>Último cobro</dt><dd>$ {Number(v.lastPayment.amount || 0).toLocaleString('es-AR')} · {v.lastPayment.paymentStatus || v.lastPayment.status}</dd></>}
+        </dl> : <p className="muted">Todavía no se suscribió. Lo hace desde su panel → Mi plan.</p>}
+      </section>
       <section className="card pad stack" style={{ background: 'var(--surface-2)' }}>
         <div className="row between"><h3>Dominio propio</h3>{v.domainStatus === 'activo' ? <span className="pill activo">Conectado</span> : v.domainStatus === 'pendiente' ? <span className="pill pendiente">Pedido por el vendedor</span> : null}</div>
         <p className="muted small">Primero agregá el dominio en Vercel (Settings → Domains). Después escribilo acá y tocá “Conectar”: desde ese momento el dominio abre la tienda de este vendedor.</p>
@@ -264,7 +277,7 @@ function Pricing() {
   const move = (i, d) => setF(x => { const pl = [...x.plans]; const [it] = pl.splice(i, 1); pl.splice(i + d, 0, it); return { ...x, plans: pl }; });
   const save = async () => {
     setBusy(true);
-    const clean = { ...f, trialDays: parseInt(f.trialDays) || 14, plans: f.plans.map(p => ({ ...p, key: p.key || p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), features: (p.features || []).map(x => x.trim()).filter(Boolean) })) };
+    const clean = { ...f, trialDays: parseInt(f.trialDays) || 14, plans: f.plans.map(p => ({ ...p, amount: Number(p.amount) || 0, maxBrands: Number(p.maxBrands) || 0, maxClients: Number(p.maxClients) || 0, customDomain: p.customDomain !== false, key: p.key || p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), features: (p.features || []).map(x => x.trim()).filter(Boolean) })) };
     try { await setDoc(doc(db, 'config', 'pricing'), clean); toast('Precios publicados en la página'); } catch (e) { console.error(e); toast('No se pudo guardar'); }
     setBusy(false);
   };
@@ -296,7 +309,13 @@ function Pricing() {
             <Field label="Precio" hint="Ej.: $ 19.900 o A medida"><input id={'pl-p' + i} className="input" value={p.price} onChange={e => setPlan(i, 'price', e.target.value)} /></Field>
             <Field label="Período" hint="Ej.: por mes"><input id={'pl-per' + i} className="input" value={p.period} onChange={e => setPlan(i, 'period', e.target.value)} /></Field>
           </div>
-          <Field label="Qué incluye" hint="Una cosa por renglón."><textarea id={'pl-f' + i} className="input" style={{ minHeight: 150 }} value={(p.features || []).join('\n')} onChange={e => setPlan(i, 'features', e.target.value.split('\n'))} /></Field>
+          <div className="grid g3">
+            <Field label="Cobro mensual automático ($)" hint="Número sin puntos. 0 = no se cobra por Mercado Pago (ej. “A medida”)."><input id={'pl-a' + i} className="input" inputMode="numeric" value={p.amount ?? ''} onChange={e => setPlan(i, 'amount', e.target.value.replace(/\D/g, ''))} /></Field>
+            <Field label="Máximo de marcas" hint="0 = sin límite"><input id={'pl-mb' + i} className="input" inputMode="numeric" value={p.maxBrands ?? 0} onChange={e => setPlan(i, 'maxBrands', e.target.value.replace(/\D/g, ''))} /></Field>
+            <Field label="Máximo de clientes" hint="0 = sin límite"><input id={'pl-mc' + i} className="input" inputMode="numeric" value={p.maxClients ?? 0} onChange={e => setPlan(i, 'maxClients', e.target.value.replace(/\D/g, ''))} /></Field>
+          </div>
+          <label className="check"><input type="checkbox" checked={p.customDomain !== false} onChange={e => setPlan(i, 'customDomain', e.target.checked)} />Permite dominio propio</label>
+          <Field label="Qué incluye" hint="Una cosa por renglón. Es el texto que se ve en la página de venta."><textarea id={'pl-f' + i} className="input" style={{ minHeight: 150 }} value={(p.features || []).join('\n')} onChange={e => setPlan(i, 'features', e.target.value.split('\n'))} /></Field>
           <div className="grid g2">
             <Field label="Texto del botón"><input id={'pl-c' + i} className="input" value={p.cta} onChange={e => setPlan(i, 'cta', e.target.value)} /></Field>
             <label className="check" style={{ alignSelf: 'end', minHeight: 50 }}><input type="checkbox" checked={!!p.highlight} onChange={e => setPlan(i, 'highlight', e.target.checked)} />Destacar como “El más elegido”</label>
@@ -308,6 +327,45 @@ function Pricing() {
         <ConfirmButton className="btn" question="¿Volver a los precios originales?" yes="Sí, restaurar" onConfirm={() => setF(JSON.parse(JSON.stringify(DEFAULT_PRICING)))}>Restaurar precios originales</ConfirmButton>
         <button className="btn primary" onClick={save} disabled={busy}>{busy ? 'Publicando…' : 'Publicar cambios'}</button>
       </div>
+    </>
+  );
+}
+
+function Company() {
+  const toast = useToast();
+  const { company, loading } = useCompany();
+  const [f, setF] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (!loading && !f) setF({ ...company }); }, [loading]);
+  if (!f) return <p className="muted">Cargando…</p>;
+  const set = (k, v) => setF(x => ({ ...x, [k]: v }));
+  const save = async () => { setBusy(true); try { await setDoc(doc(db, 'config', 'company'), f); toast('Datos publicados'); } catch (e) { toast('No se pudo guardar'); } setBusy(false); };
+  const inp = (k, label, ph, hint) => <Field label={label} hint={hint}><input id={'co-' + k} className="input" placeholder={ph} value={f[k] || ''} onChange={e => set(k, e.target.value)} /></Field>;
+  return (
+    <>
+      <div className="head">
+        <div className="grow"><h1>Tu empresa</h1><p>Estos datos aparecen en el pie de página de la plataforma y en las páginas legales.</p></div>
+        <button className="btn primary" onClick={save} disabled={busy}>{busy ? 'Publicando…' : 'Publicar cambios'}</button>
+      </div>
+      <section className="card pad stack">
+        <h2>Datos comerciales</h2>
+        <div className="grid g2">{inp('name', 'Nombre de la plataforma')}{inp('legalName', 'Razón social', 'GBS Global Business Supply SRL')}{inp('cuit', 'CUIT', '30-00000000-0')}{inp('ivaCond', 'Condición de IVA', 'Responsable inscripto')}</div>
+        <Field label="Frase de presentación (pie de página)"><input id="co-tag" className="input" value={f.tagline} onChange={e => set('tagline', e.target.value)} /></Field>
+      </section>
+      <section className="card pad stack">
+        <h2>Contacto</h2>
+        <div className="grid g2">{inp('address', 'Dirección')}{inp('city', 'Localidad')}{inp('whatsapp', 'WhatsApp', '5491155551234', 'Con código de país, sin +. Lo usa también el botón de la página de venta.')}{inp('phone', 'Teléfono')}{inp('email', 'Email de contacto')}{inp('hours', 'Horario de atención')}</div>
+        <h3>Redes</h3>
+        <div className="grid g2">{inp('instagram', 'Instagram', '@usuario')}{inp('facebook', 'Facebook')}{inp('linkedin', 'LinkedIn')}{inp('website', 'Otro sitio web')}</div>
+      </section>
+      <section className="card pad stack">
+        <h2>Páginas legales</h2>
+        <div className="notice warn">Son textos de ejemplo pensados para Argentina. Conviene que los revise tu abogado o contador antes de cobrar a vendedores.</div>
+        <Field label="Términos y condiciones" hint="Se ve en /terminos"><textarea id="co-terms" className="input" style={{ minHeight: 260 }} value={f.terms} onChange={e => set('terms', e.target.value)} /></Field>
+        <Field label="Política de privacidad" hint="Se ve en /privacidad"><textarea id="co-priv" className="input" style={{ minHeight: 220 }} value={f.privacy} onChange={e => set('privacy', e.target.value)} /></Field>
+        <div className="row"><ConfirmButton className="btn" question="¿Volver a los textos de ejemplo?" yes="Sí" onConfirm={() => setF(x => ({ ...x, terms: DEFAULT_COMPANY.terms, privacy: DEFAULT_COMPANY.privacy }))}>Restaurar textos de ejemplo</ConfirmButton>
+          <button className="btn primary" onClick={save} disabled={busy}>{busy ? 'Publicando…' : 'Publicar cambios'}</button></div>
+      </section>
     </>
   );
 }

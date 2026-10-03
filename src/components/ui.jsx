@@ -14,7 +14,7 @@ const P = {
   more: 'M4 6h16M4 12h16M4 18h16', store: 'M3 9l1.5-5h15L21 9M3 9v11h18V9M3 9h18M9 20v-6h6v6', out: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
   shield: 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z', inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13L22 12v7H2v-7z', file: 'M14 3H6v18h12V7zM14 3v4h4',
   search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3', user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
-  cart: 'M3 4h2l2.4 11h11L21 7H6.2M9 20h.01M18 20h.01', trash: 'M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14',
+  cart: 'M3 4h2l2.4 11h11L21 7H6.2M9 20h.01M18 20h.01', card: 'M2 6h20v12H2zM2 10h20M6 15h4', trash: 'M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14',
 };
 export const Icon = ({ n, size }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={size ? { width: size, height: size } : undefined}>
@@ -97,4 +97,27 @@ export function FileButton({ label, accept, onFile, busy }) {
 
 export async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
+}
+
+// Editor de filas simple (para escalas, formas de pago, etc.).
+// cols: [{ k, label, placeholder, type: 'num' | 'text', width }]
+export function RowsEditor({ rows, onChange, cols, addLabel, empty, idPrefix }) {
+  const set = (i, k, v) => onChange(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  return (
+    <div className="stack" style={{ gap: 10 }}>
+      {rows.length === 0 && empty && <p className="muted small">{empty}</p>}
+      {rows.map((r, i) => (
+        <div key={i} className="row" style={{ gap: 10, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
+          {cols.map(c => (
+            <label key={c.k} className="field" style={{ flex: c.width || 1 }}>
+              <span>{c.label}</span>
+              <input id={`${idPrefix}-${c.k}-${i}`} className="input" inputMode={c.type === 'num' ? 'decimal' : undefined} placeholder={c.placeholder} value={r[c.k] ?? ''} onChange={e => set(i, c.k, e.target.value)} />
+            </label>
+          ))}
+          <button type="button" className="btn sm danger" aria-label="Quitar fila" onClick={() => onChange(rows.filter((_, j) => j !== i))} style={{ minHeight: 50 }}><Icon n="x" /></button>
+        </div>
+      ))}
+      <div><button type="button" className="btn sm" onClick={() => onChange([...rows, Object.fromEntries(cols.map(c => [c.k, '']))])}><Icon n="plus" />{addLabel}</button></div>
+    </div>
+  );
 }

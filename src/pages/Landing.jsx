@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../lib/auth';
-import { usePricing } from '../lib/siteConfig';
+import { usePricing, useCompany } from '../lib/siteConfig';
+import PortalFooter from './PortalFooter';
 import './landing.css';
 
-const WA = (import.meta.env.VITE_CONTACT_WHATSAPP || '').replace(/\D/g, '');
 
 const FEATURES = [
   ['Una tienda por cada marca', 'Subís el logo de cada empresa que representás y armás su vidriera con catálogo, fotos y condiciones.'],
@@ -29,6 +29,8 @@ const FAQ = [
 export default function Landing() {
   const { user } = useAuth();
   const { pricing } = usePricing();
+  const { company } = useCompany();
+  const WA = String(company.whatsapp || '').replace(/\D/g, '');
   const days = pricing.trialDays;
   return (
     <div className="lp">
@@ -133,10 +135,7 @@ export default function Landing() {
         <LeadForm />
       </div></section>
 
-      <footer className="lp-foot"><div className="lp-wrap row between">
-        <Link to="/" className="brandline" style={{ fontSize: 18 }}><i style={{ width: 34, height: 34, fontSize: 14 }}>RC</i>Representaciones comerciales</Link>
-        <span className="muted">Hecho en Buenos Aires · <Link to="/ingresar">Ingresar</Link></span>
-      </div></footer>
+      <PortalFooter />
     </div>
   );
 }

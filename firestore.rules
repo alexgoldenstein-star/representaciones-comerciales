@@ -58,7 +58,7 @@ service cloud.firestore {
         && request.resource.data.plan == 'prueba'
         && request.resource.data.domainStatus == 'sin';
       allow update: if isSuper() || (isOwner(vid)
-        && !changed().hasAny(['status', 'plan', 'ownerUid', 'createdAt', 'dnsRecords', 'trialEnds', 'adminNotes'])
+        && !changed().hasAny(['status', 'plan', 'ownerUid', 'createdAt', 'dnsRecords', 'trialEnds', 'adminNotes', 'subscription', 'lastPayment'])
         && (!changed().hasAny(['domainStatus']) || request.resource.data.domainStatus in ['sin', 'pendiente']));
       allow delete: if isSuper();
 
@@ -87,6 +87,11 @@ service cloud.firestore {
           && request.resource.data.docs.size() == 0
           && request.resource.data.commissionPaid == false);
         allow update, delete: if isOwner(vid) || isSuper();
+      }
+      // Cobros de la suscripción: sólo los escribe el servidor (webhook de Mercado Pago).
+      match /payments/{pid} {
+        allow read: if isOwner(vid) || isSuper();
+        allow write: if false;
       }
       match /counters/{cid} {
         allow read: if isOwner(vid) || isSuper() || isClient(vid);

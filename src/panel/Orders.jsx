@@ -6,6 +6,8 @@ import { usePanel } from './Panel';
 import { BrandMark, ConfirmButton, Drawer, Empty, Field, FileButton, Icon, Pill, copyText, useToast } from '../components/ui';
 import { DOC_TYPES, IVA, STATUSES, commOf, fdate, fmt, net, stageOf, STAGES, subtotal, today } from '../lib/format';
 import { createOrder } from '../lib/orders';
+import { quote, describeTerms } from '../lib/terms';
+import Breakdown from '../components/Breakdown';
 import { uploadDoc } from '../lib/upload';
 
 export default function Orders() {
@@ -123,13 +125,8 @@ function OrderDetail({ id, onClose }) {
             <tr key={i}><td><b>{it.name}</b><div className="muted small">{it.sku}</div></td><td className="r num">{it.qty}</td><td className="r num">{fmt(it.price)}</td><td className="r num">{fmt(it.qty * it.price)}</td></tr>
           ))}</tbody>
         </table></div>
-        <div className="tot">
-          <span className="muted">Subtotal de lista</span><span>{fmt(subtotal(o))}</span>
-          <span className="muted">Bonificación {o.discount || 0}%</span><span>− {fmt(subtotal(o) - net(o))}</span>
-          <span className="muted">Neto</span><span>{fmt(net(o))}</span>
-          <span className="muted">IVA 21%</span><span>{fmt(iva)}</span>
-          <span className="big">Total</span><span className="big">{fmt(net(o) + iva)}</span>
-        </div>
+        <Breakdown subtotal={subtotal(o)} steps={o.discountSteps || (o.discount ? [{ label: 'Bonificación', pct: Number(o.discount) }] : [])} effective={o.discount} net={net(o)} />
+        {(o.payOption || o.plazo) && <p className="pad muted" style={{ paddingTop: 0 }}>Forma de pago: <b>{o.payOption || o.plazo}</b></p>}
       </div>
 
       <div className="card pad stack" style={{ background: 'var(--accent-soft)', borderColor: 'transparent', gap: 10 }}>
@@ -187,17 +184,22 @@ function NewOrder({ onClose, onCreated }) {
   const { vid, brands, products, clients } = usePanel();
   const toast = useToast();
   const active = clients.filter(c => c.status === 'activo');
-  const [clientId, setClientId] = useState(active[0]?.id || '');
-  const [brandId, setBrandId] = useState(brands[0]?.id || '');
+  const [clientSel, setClientId] = useState('');
+  const [brandSel, setBrandId] = useState('');
+  const clientId = clientSel || active[0]?.id || '';
+  const brandId = brandSel || brands[0]?.id || '';
   const b = brands.find(x => x.id === brandId);
+  const client = clients.find(x => x.id === clientId);
   const prods = products.filter(p => p.brandId === brandId && p.active !== false).sort((a, c) => a.name.localeCompare(c.name));
   const [lines, setLines] = useState([]);
-  const [disc, setDisc] = useState(b?.cond?.descuento || 0);
+  const [pay, setPay] = useState('');
+  const [manual, setManual] = useState(false);
+  const [manualDisc, setManualDisc] = useState('');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setLines([]); setDisc(b?.cond?.descuento || 0); }, [brandId]);
+  useEffect(() => { setLines([]); setPay(''); setManual(false); }, [brandId]);
 
-  if (!brands.length || !active.length) {
+  if (!b || !client) {
     return <Drawer title="Cargar un pedido" onClose={onClose}>
       <Empty title="Faltan datos para cargar pedidos" text={!brands.length ? 'Primero cargá al menos una marca con sus artículos.' : 'Primero cargá o aprobá al menos un cliente.'} />
     </Drawer>;
@@ -207,15 +209,17 @@ function NewOrder({ onClose, onCreated }) {
     setLines(ls => ls.find(l => l.productId === pid) ? ls.map(l => l.productId === pid ? { ...l, qty: l.qty + (p.pack || 1) } : l)
       : [...ls, { productId: p.id, sku: p.sku, name: p.name, price: p.price, qty: p.pack || 1 }]);
   };
-  const draft = { items: lines, discount: disc };
-  const n = net(draft);
+  const q = quote(b, client, lines, pay);
+  const steps = manual ? [{ label: 'Bonificación acordada en este pedido', pct: Number(String(manualDisc).replace(',', '.')) || 0 }] : q.steps;
+  const effective = manual ? (Number(String(manualDisc).replace(',', '.')) || 0) : q.effective;
+  const n = manual ? q.subtotal * (1 - effective / 100) : q.net;
   const submit = async () => {
     const items = lines.filter(l => l.qty > 0);
     if (!items.length) { toast('Agregá al menos un artículo'); return; }
     setBusy(true);
     try {
-      const c = clients.find(x => x.id === clientId);
-      const r = await createOrder(vid, { clientId, clientName: c.name, brandId, brandName: b.name, status: 'confirmado', origin: 'vendedor', items, discount: Number(disc) || 0, commissionRate: Number(b.commission) || 0, notes });
+      const r = await createOrder(vid, { clientId, clientName: client.name, brandId, brandName: b.name, status: 'confirmado', origin: 'vendedor', items,
+        discount: effective, discountSteps: steps, payOption: pay || '', plazo: q.plazo || '', commissionRate: Number(b.commission) || 0, notes });
       toast('Pedido ' + r.number + ' guardado'); onCreated(r.id);
     } catch (e) { console.error(e); toast('No se pudo guardar el pedido. Probá de nuevo.'); setBusy(false); }
   };
@@ -227,7 +231,10 @@ function NewOrder({ onClose, onCreated }) {
         <Field label="1. Cliente"><select id="n-cl" className="input" value={clientId} onChange={e => setClientId(e.target.value)}>{active.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
         <Field label="2. Marca"><select id="n-br" className="input" value={brandId} onChange={e => setBrandId(e.target.value)}>{brands.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
       </div>
-      {b?.cond && <div className="notice"><div>Condiciones de {b.name}: <b style={{ display: 'inline' }}>{b.cond.plazo}</b> · mínimo <b style={{ display: 'inline' }}>{fmt(b.cond.minimo)}</b>{b.cond.flete ? ' · ' + b.cond.flete : ''}</div></div>}
+      <div className={'notice' + (q.terms.hasSpecial ? ' ok' : '')}><div>
+        <b>{q.terms.hasSpecial ? `Condiciones especiales de ${client?.name} con ${b.name}` : `Condiciones generales de ${b.name}`}</b>
+        {describeTerms(q.terms) || 'Sin bonificación'}{b.cond?.flete ? ' · ' + b.cond.flete : ''}{q.terms.notas ? ' · ' + q.terms.notas : ''}
+      </div></div>
       <Field label="3. Agregá artículos" hint="Cada vez que elegís uno se suma un bulto.">
         <select id="n-add" className="input" value="" onChange={e => add(e.target.value)}>
           <option value="">Elegí un artículo de {b?.name}…</option>
@@ -250,12 +257,23 @@ function NewOrder({ onClose, onCreated }) {
             ))}
           </div>
         )}
+        {lines.length > 0 && <Breakdown subtotal={q.subtotal} steps={steps} effective={effective} net={n} />}
       </div>
-      <div className="grid g2">
-        <Field label="Bonificación (%)"><input id="n-disc" className="input" inputMode="decimal" value={disc} onChange={e => setDisc(e.target.value)} /></Field>
-        <div className="card pad"><span className="label">Tu comisión estimada</span><div style={{ fontSize: 24, fontWeight: 700 }}>{fmt(n * (b?.commission || 0) / 100)}</div></div>
+      {q.terms.pagos.length > 0 && (
+        <Field label="4. Forma de pago">
+          <select id="n-pay" className="input" value={pay} onChange={e => setPay(e.target.value)}>
+            <option value="">{q.terms.plazo || 'Sin especificar'}</option>
+            {q.terms.pagos.map(p => <option key={p.nombre} value={p.nombre}>{p.nombre}{Number(p.ajuste) ? ` (${Number(p.ajuste) > 0 ? p.ajuste + '% desc.' : Math.abs(p.ajuste) + '% recargo'})` : ''}</option>)}
+          </select>
+        </Field>
+      )}
+      {q.nextTier && lines.length > 0 && !manual && <div className="notice">Sumando {fmt(q.nextTier.desde - q.subtotal)} más de lista llega a la escala de <b style={{ display: 'inline' }}>{q.nextTier.extra}% extra</b>.</div>}
+      <div className="card pad stack" style={{ gap: 10 }}>
+        <label className="check"><input type="checkbox" checked={manual} onChange={e => { setManual(e.target.checked); setManualDisc(String(q.effective)); }} />Poner a mano la bonificación de este pedido</label>
+        {manual && <Field label="Bonificación total (%)"><input id="n-disc" className="input" inputMode="decimal" style={{ maxWidth: 180 }} value={manualDisc} onChange={e => setManualDisc(e.target.value)} /></Field>}
+        <div><span className="label">Tu comisión estimada</span><div style={{ fontSize: 24, fontWeight: 700 }}>{fmt(n * (b?.commission || 0) / 100)}</div></div>
       </div>
-      {n > 0 && b?.cond?.minimo > n && <div className="notice warn">Faltan <b style={{ display: 'inline' }}>{fmt(b.cond.minimo - n)}</b> para llegar al pedido mínimo de {b.name}.</div>}
+      {n > 0 && q.minimo > n && <div className="notice warn">Faltan <b style={{ display: 'inline' }}>{fmt(q.minimo - n)}</b> para llegar al pedido mínimo.</div>}
       <Field label="Notas (opcional)"><textarea id="n-notes" className="input" placeholder="Horario de entrega, condiciones especiales…" value={notes} onChange={e => setNotes(e.target.value)} /></Field>
     </Drawer>
   );

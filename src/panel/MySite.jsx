@@ -2,17 +2,20 @@ import { useState } from 'react';
 import { doc, getDoc, runTransaction, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { usePanel } from './Panel';
-import { ConfirmButton, Field, FileButton, Icon, copyText, useToast } from '../components/ui';
+import { ConfirmButton, Field, FileButton, Icon, RowsEditor, copyText, useToast } from '../components/ui';
+import { DEFAULT_SERVICES } from '../site/VendorHome';
 import { PLANS, cleanHost, fdate, initials, slugify } from '../lib/format';
 import { uploadPublicImage } from '../lib/upload';
 import { COLORS } from './Brands';
 import { siteBase } from './Clients';
 
 export default function MySite() {
-  const { vid, v, orders, brands, products, clients } = usePanel();
+  const { vid, v, orders, brands, products, clients, limits } = usePanel();
   const toast = useToast();
   const vref = doc(db, 'vendors', vid);
-  const [f, setF] = useState({ business: v.business, name: v.name, whatsapp: v.whatsapp || '', email: v.email || '', zone: v.zone || '', about: v.about || '', color: v.color || COLORS[0] });
+  const FIELDS = ['business', 'name', 'whatsapp', 'email', 'zone', 'about', 'aboutTitle', 'heroTitle', 'heroSubtitle', 'since', 'legalName', 'cuit', 'ivaCond', 'address', 'city', 'phone', 'hours', 'instagram', 'facebook', 'linkedin', 'website'];
+  const [f, setF] = useState(() => ({ ...Object.fromEntries(FIELDS.map(k => [k, v[k] || ''])), color: v.color || COLORS[0], services: v.services?.length ? v.services : DEFAULT_SERVICES }));
+  const [upImg, setUpImg] = useState('');
   const [up, setUp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [slug, setSlug] = useState(v.slug);
@@ -23,7 +26,7 @@ export default function MySite() {
   const saveData = async () => {
     if (!f.business.trim()) { toast('El nombre de tu representación no puede quedar vacío'); return; }
     setBusy(true);
-    try { await updateDoc(vref, { ...f, whatsapp: f.whatsapp.replace(/\D/g, '') }); toast('Datos guardados'); } catch (e) { toast('No se pudo guardar'); }
+    try { await updateDoc(vref, { ...f, whatsapp: f.whatsapp.replace(/\D/g, ''), services: (f.services || []).filter(x => x.title) }); toast('Cambios guardados. Ya se ven en tu sitio.'); } catch (e) { toast('No se pudo guardar'); }
     setBusy(false);
   };
   const changeSlug = async () => {
@@ -61,12 +64,15 @@ export default function MySite() {
   return (
     <>
       <div className="head">
-        <div className="grow"><h1>Mi sitio</h1><p>Tus datos, la dirección de tu tienda y tu dominio propio.</p></div>
+        <div className="grow"><h1>Mi sitio</h1><p>Armá tu sitio: portada, quiénes somos, contacto, datos de la empresa, dirección y dominio.</p></div>
         <a className="btn" href={link} target="_blank" rel="noreferrer"><Icon n="store" />Ver mi sitio</a>
       </div>
 
+      <div className="notice"><div className="grow"><b>Todo lo que cargues acá se ve en tu sitio</b>Completalo como lo pondrías en un folleto de tu empresa: datos reales, fotos propias y tus redes. Al terminar tocá “Guardar cambios”.</div>
+        <button className="btn primary" onClick={saveData} disabled={busy}>{busy ? 'Guardando…' : 'Guardar cambios'}</button></div>
+
       <section className="card pad stack">
-        <h2>Tus datos</h2>
+        <h2>1. Tu marca</h2>
         <div className="row" style={{ alignItems: 'center' }}>
           <div className="me"><div className="logo" style={{ width: 80, height: 80, fontSize: 26, background: f.color }}>{v.logoUrl ? <img src={v.logoUrl} alt="" /> : initials(f.business)}</div></div>
           <FileButton label={v.logoUrl ? 'Cambiar mi logo' : 'Subir mi logo'} accept="image/*" busy={up} onFile={async file => { setUp(true); try { await updateDoc(vref, { logoUrl: await uploadPublicImage(vid, 'logo', file) }); toast('Logo actualizado'); } catch (e) { toast('No se pudo subir el logo'); } setUp(false); }} />
@@ -75,14 +81,67 @@ export default function MySite() {
         <div className="grid g2">
           <Field label="Nombre de tu representación"><input id="m-bus" className="input" value={f.business} onChange={e => set('business', e.target.value)} /></Field>
           <Field label="Tu nombre"><input id="m-name" className="input" value={f.name} onChange={e => set('name', e.target.value)} /></Field>
-          <Field label="WhatsApp para pedidos"><input id="m-wa" className="input" inputMode="tel" value={f.whatsapp} onChange={e => set('whatsapp', e.target.value)} /></Field>
-          <Field label="Email"><input id="m-em" className="input" type="email" value={f.email} onChange={e => set('email', e.target.value)} /></Field>
         </div>
-        <Field label="Zonas que cubrís" hint="Separadas por coma. Ej.: CABA, GBA Sur, Rosario"><input id="m-zone" className="input" value={f.zone} onChange={e => set('zone', e.target.value)} /></Field>
-        <Field label="Presentación" hint="Aparece en la portada de tu sitio. Contá qué hacés y para quién."><textarea id="m-about" className="input" value={f.about} onChange={e => set('about', e.target.value)} /></Field>
         <div><span className="label">Color de tu sitio</span>
           <div className="row" style={{ gap: 8, marginTop: 6 }}>{COLORS.map(c => <button key={c} aria-label={'Color ' + c} onClick={() => set('color', c)} style={{ width: 44, height: 44, borderRadius: 10, background: c, border: f.color === c ? '3px solid var(--ink)' : '3px solid transparent', cursor: 'pointer' }} />)}</div></div>
-        <div><button className="btn primary" onClick={saveData} disabled={busy}>{busy ? 'Guardando…' : 'Guardar mis datos'}</button></div>
+      </section>
+
+      <section className="card pad stack">
+        <h2>2. Portada</h2>
+        <p className="muted">Es lo primero que ven al entrar. Usá una foto horizontal de buena calidad: tu depósito, un local, productos de tus marcas.</p>
+        <div className="row">
+          {v.bannerUrl && <img src={v.bannerUrl} alt="" style={{ width: 220, aspectRatio: '16/7', objectFit: 'cover', borderRadius: 10 }} />}
+          <FileButton label={v.bannerUrl ? 'Cambiar foto de portada' : 'Subir foto de portada'} accept="image/*" busy={upImg === 'bannerUrl'} onFile={async file => { setUpImg('bannerUrl'); try { await updateDoc(vref, { bannerUrl: await uploadPublicImage(vid, 'sitio', file) }); toast('Imagen actualizada'); } catch (e) { toast('No se pudo subir la imagen'); } setUpImg(''); }} />
+            {v.bannerUrl && <button className="btn sm link" onClick={() => updateDoc(vref, { bannerUrl: null })}>Quitar</button>}
+        </div>
+        <Field label="Título principal" hint={`Si lo dejás vacío se muestra “${f.business}”.`}><input id="m-ht" className="input" placeholder="Ej.: Representación comercial de fábricas argentinas" value={f.heroTitle} onChange={e => set('heroTitle', e.target.value)} /></Field>
+        <Field label="Bajada" hint="Una o dos líneas: qué hacés y para quién."><textarea id="m-hs" className="input" style={{ minHeight: 80 }} placeholder="Ej.: Llevamos las mejores marcas de bazar e iluminación a ferreterías y bazares de AMBA y el interior." value={f.heroSubtitle} onChange={e => set('heroSubtitle', e.target.value)} /></Field>
+        <Field label="Año en que empezaste" hint="Se muestra como “X años de trayectoria”."><input id="m-since" className="input" inputMode="numeric" style={{ maxWidth: 160 }} placeholder="2011" value={f.since} onChange={e => set('since', e.target.value.replace(/\D/g, '').slice(0, 4))} /></Field>
+      </section>
+
+      <section className="card pad stack">
+        <h2>3. Quiénes somos</h2>
+        <Field label="Título de la sección"><input id="m-at" className="input" placeholder="Quiénes somos" value={f.aboutTitle} onChange={e => set('aboutTitle', e.target.value)} /></Field>
+        <Field label="Texto" hint="Contá tu historia, tu experiencia y cómo trabajás. Podés usar varios párrafos."><textarea id="m-about" className="input" style={{ minHeight: 160 }} value={f.about} onChange={e => set('about', e.target.value)} /></Field>
+        <div className="row">
+          {v.aboutImageUrl && <img src={v.aboutImageUrl} alt="" style={{ width: 160, aspectRatio: '4/3', objectFit: 'cover', borderRadius: 10 }} />}
+          <FileButton label={v.aboutImageUrl ? 'Cambiar foto (opcional)' : 'Subir foto (opcional)'} accept="image/*" busy={upImg === 'aboutImageUrl'} onFile={async file => { setUpImg('aboutImageUrl'); try { await updateDoc(vref, { aboutImageUrl: await uploadPublicImage(vid, 'sitio', file) }); toast('Imagen actualizada'); } catch (e) { toast('No se pudo subir la imagen'); } setUpImg(''); }} />
+            {v.aboutImageUrl && <button className="btn sm link" onClick={() => updateDoc(vref, { aboutImageUrl: null })}>Quitar</button>}
+        </div>
+      </section>
+
+      <section className="card pad stack">
+        <h2>4. Qué ofrecemos</h2>
+        <p className="muted">Tres o cuatro puntos fuertes de tu servicio.</p>
+        <RowsEditor idPrefix="sv" rows={f.services} onChange={val => set('services', val)} addLabel="Agregar punto"
+          cols={[{ k: 'title', label: 'Título', placeholder: 'Atención personalizada' }, { k: 'text', label: 'Descripción', placeholder: 'Visitamos tu comercio…', width: 2 }]} />
+      </section>
+
+      <section className="card pad stack">
+        <h2>5. Contacto y datos de la empresa</h2>
+        <p className="muted">Aparecen en la sección Contacto y en el pie de página de tu sitio.</p>
+        <div className="grid g2">
+          <Field label="WhatsApp para pedidos"><input id="m-wa" className="input" inputMode="tel" value={f.whatsapp} onChange={e => set('whatsapp', e.target.value)} /></Field>
+          <Field label="Teléfono fijo (opcional)"><input id="m-ph" className="input" inputMode="tel" value={f.phone} onChange={e => set('phone', e.target.value)} /></Field>
+          <Field label="Email"><input id="m-em" className="input" type="email" value={f.email} onChange={e => set('email', e.target.value)} /></Field>
+          <Field label="Horario de atención"><input id="m-hours" className="input" placeholder="Lunes a viernes de 9 a 18 h" value={f.hours} onChange={e => set('hours', e.target.value)} /></Field>
+          <Field label="Dirección"><input id="m-addr" className="input" placeholder="Av. Rivadavia 1234, piso 3" value={f.address} onChange={e => set('address', e.target.value)} /></Field>
+          <Field label="Localidad"><input id="m-city" className="input" placeholder="CABA" value={f.city} onChange={e => set('city', e.target.value)} /></Field>
+        </div>
+        <Field label="Zonas que cubrís" hint="Separadas por coma. Ej.: CABA, GBA Sur, Rosario"><input id="m-zone" className="input" value={f.zone} onChange={e => set('zone', e.target.value)} /></Field>
+        <div className="grid g3">
+          <Field label="Razón social"><input id="m-legal" className="input" placeholder="García Representaciones SRL" value={f.legalName} onChange={e => set('legalName', e.target.value)} /></Field>
+          <Field label="CUIT"><input id="m-cuit" className="input" inputMode="numeric" placeholder="30-00000000-0" value={f.cuit} onChange={e => set('cuit', e.target.value)} /></Field>
+          <Field label="Condición de IVA"><select id="m-iva" className="input" value={f.ivaCond} onChange={e => set('ivaCond', e.target.value)}><option value="">—</option><option>Responsable inscripto</option><option>Monotributo</option><option>Exento</option></select></Field>
+        </div>
+        <h3>Redes sociales</h3>
+        <div className="grid g2">
+          <Field label="Instagram" hint="Usuario o link"><input id="m-ig" className="input" placeholder="@garciarepresentaciones" value={f.instagram} onChange={e => set('instagram', e.target.value)} /></Field>
+          <Field label="Facebook"><input id="m-fb" className="input" value={f.facebook} onChange={e => set('facebook', e.target.value)} /></Field>
+          <Field label="LinkedIn"><input id="m-li" className="input" value={f.linkedin} onChange={e => set('linkedin', e.target.value)} /></Field>
+          <Field label="Otro sitio web"><input id="m-web" className="input" value={f.website} onChange={e => set('website', e.target.value)} /></Field>
+        </div>
+        <div><button className="btn primary" onClick={saveData} disabled={busy}>{busy ? 'Guardando…' : 'Guardar cambios'}</button></div>
       </section>
 
       <section className="card pad stack">
@@ -127,9 +186,10 @@ export default function MySite() {
         ) : (
           <>
             {v.domainStatus === 'rechazado' && v.adminNotes && <div className="notice bad"><div><b>Mensaje del equipo</b>{v.adminNotes}</div></div>}
-            <p className="muted">Si ya tenés un dominio (por ejemplo, garciarepresentaciones.com.ar), lo conectamos para que tu sitio se vea ahí. Disponible en el plan Profesional.</p>
+            <p className="muted">Si ya tenés un dominio (por ejemplo, garciarepresentaciones.com.ar), lo conectamos para que tu sitio se vea ahí. </p>
             <Field label="Tu dominio"><input id="m-dom" className="input" placeholder="tuempresa.com.ar" value={domain} onChange={e => setDomain(e.target.value)} /></Field>
-            <div><button className="btn primary" onClick={requestDomain}>Pedir que conecten mi dominio</button></div>
+            {limits.customDomain ? <div><button className="btn primary" onClick={requestDomain}>Pedir que conecten mi dominio</button></div>
+              : <div className="notice warn"><div className="grow"><b>Tu plan {limits.name} no incluye dominio propio</b>Pasate a un plan superior para usar tu dominio.</div><a className="btn sm" href="/panel/plan">Ver planes</a></div>}
           </>
         )}
       </section>

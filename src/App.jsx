@@ -11,6 +11,7 @@ import Signup from './pages/Signup';
 import Panel from './panel/Panel';
 import Admin from './admin/Admin';
 import VendorSite from './site/VendorSite';
+import Legal from './pages/Legal';
 
 const MAIN_HOSTS = (import.meta.env.VITE_MAIN_HOSTS || '').split(',').map(cleanHost).filter(Boolean);
 const host = cleanHost(window.location.hostname);
@@ -23,6 +24,8 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/ingresar" element={<Login />} />
       <Route path="/registro" element={<Signup />} />
+      <Route path="/terminos" element={<Legal kind="terminos" />} />
+      <Route path="/privacidad" element={<Legal kind="privacidad" />} />
       <Route path="/panel/*" element={<RequireRole role="vendedor"><Panel /></RequireRole>} />
       <Route path="/admin/*" element={<RequireRole role="super"><Admin /></RequireRole>} />
       <Route path="/v/:slug/*" element={<SiteBySlug />} />

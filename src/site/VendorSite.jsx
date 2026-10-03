@@ -8,6 +8,12 @@ import { useCol, useDocData } from '../lib/hooks';
 import { BrandMark, Empty, Field, Icon, Loading, Pill, useToast } from '../components/ui';
 import { IVA, fdate, fmt, initials, net } from '../lib/format';
 import { createOrder } from '../lib/orders';
+import { quote } from '../lib/terms';
+import Breakdown from '../components/Breakdown';
+import Footer from '../components/Footer';
+import VendorHome from './VendorHome';
+
+const MAIN_HOST = (import.meta.env.VITE_MAIN_HOSTS || '').split(',')[0].trim();
 
 export default function VendorSite({ vendorId: vid, base }) {
   const vendor = useDocData(`vendors/${vid}`);
@@ -43,7 +49,7 @@ export default function VendorSite({ vendorId: vid, base }) {
       {isOwner && <div style={{ background: 'var(--accent-soft)', padding: '10px 16px', textAlign: 'center', fontSize: 16 }}>Estás viendo tu sitio como lo ven tus clientes. <Link to="/panel"><b>Volver a mi panel</b></Link></div>}
       <div style={{ flex: 1 }}>
         <Routes>
-          <Route index element={<Home ctx={ctx} to={to} />} />
+          <Route index element={<VendorHome ctx={ctx} to={to} />} />
           <Route path="tienda" element={<ShopHome ctx={ctx} to={to} />} />
           <Route path="tienda/:brandId" element={<BrandShop ctx={ctx} to={to} />} />
           <Route path="ingresar" element={<ClientLogin ctx={ctx} to={to} />} />
@@ -52,64 +58,16 @@ export default function VendorSite({ vendorId: vid, base }) {
           <Route path="*" element={<Navigate to={to('/')} replace />} />
         </Routes>
       </div>
-      <footer style={{ borderTop: '1px solid var(--line)', background: 'var(--surface)' }}>
-        <div className="swrap" style={{ paddingBlock: 24, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <span className="muted">© {v.business}</span>
-          {user && <span className="row" style={{ gap: 8 }}>{client.data && <Link className="btn sm" to={to('/mis-pedidos')}>Mis pedidos</Link>}<button className="btn sm" onClick={logout}>Salir</button></span>}
-          <span className="muted small">Hecho con Representaciones comerciales</span>
-        </div>
-      </footer>
+      <Footer color={v.color}
+        d={{ name: v.business, logoUrl: v.logoUrl, tagline: v.heroSubtitle || 'Representaciones comerciales', legalName: v.legalName, cuit: v.cuit, ivaCond: v.ivaCond,
+          address: v.address, city: v.city, phone: v.phone, whatsapp: v.whatsapp, email: v.email, hours: v.hours, instagram: v.instagram, facebook: v.facebook, linkedin: v.linkedin, website: v.website }}
+        links={[{ label: 'Inicio', to: to('/') }, { label: 'Tienda y catálogos', to: to('/tienda') }, ...(client.data ? [{ label: 'Mis pedidos', to: to('/mis-pedidos') }] : []), user ? { label: 'Salir', onClick: logout } : { label: 'Ingresar', to: to('/ingresar') }, ...(!user ? [{ label: 'Quiero ser cliente', to: to('/registro') }] : [])]}
+        bottom={<span>Sitio hecho con <a href={MAIN_HOST && !window.location.pathname.startsWith('/v/') ? 'https://' + MAIN_HOST : '/'}>Representaciones comerciales</a></span>} />
     </div>
   );
 }
 
 const waLink = (num, text) => { const n = String(num || '').replace(/\D/g, ''); return `https://wa.me/${n.startsWith('54') ? n : '549' + n}${text ? '?text=' + encodeURIComponent(text) : ''}`; };
-
-function Home({ ctx, to }) {
-  const { v, brands, user, client } = ctx;
-  const zones = (v.zone || '').split(',').map(s => s.trim()).filter(Boolean);
-  return (
-    <div className="swrap">
-      <section className="card" style={{ padding: 'clamp(24px, 5vw, 48px)', display: 'grid', gap: 28, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', alignItems: 'center' }}>
-        <div className="stack" style={{ gap: 18 }}>
-          <span className="label" style={{ color: 'var(--primary)' }}>Representante comercial</span>
-          <h1 style={{ fontFamily: 'var(--serif)', fontSize: 'clamp(34px, 5vw, 52px)' }}>{v.business}</h1>
-          <p style={{ fontSize: 20, color: 'var(--ink-2)' }}>{v.about || `Representamos ${brands.length} marcas para comercios. Mirá los catálogos y hacé tu pedido online.`}</p>
-          <div className="row">
-            <Link className="btn primary" to={to('/tienda')}>Ver catálogos y precios</Link>
-            {!user && <Link className="btn" to={to('/registro')}>Quiero ser cliente</Link>}
-          </div>
-        </div>
-        <div className="card pad stack" style={{ background: 'var(--surface-2)', borderColor: 'transparent', gap: 12 }}>
-          <span className="label">Contacto</span>
-          <b style={{ fontSize: 20 }}>{v.name}</b>
-          {v.whatsapp && <a className="btn ok" href={waLink(v.whatsapp, 'Hola, te escribo desde tu sitio.')} target="_blank" rel="noreferrer"><Icon n="send" />Escribir por WhatsApp</a>}
-          {v.email && <span>Email: <b>{v.email}</b></span>}
-          {client?.status === 'pendiente' && <div className="notice warn">Tu solicitud de cliente está en revisión.</div>}
-        </div>
-      </section>
-      <section className="stack">
-        <h2>Marcas que representamos</h2>
-        {brands.length === 0 ? <div className="card"><Empty title="Pronto vas a ver las marcas acá" /></div> : (
-          <div className="logowall">{brands.map(b => (
-            <Link key={b.id} to={to('/tienda/' + b.id)} className="card lw">
-              <BrandMark b={b} size="l" /><b style={{ fontSize: 19 }}>{b.name}</b><span className="muted small">{b.tag}</span>
-            </Link>
-          ))}</div>
-        )}
-      </section>
-      {zones.length > 0 && <section className="stack"><h2>Zonas que cubrimos</h2><div className="row">{zones.map(z => <span key={z} className="pill confirmado plain" style={{ fontSize: 17, padding: '8px 16px' }}>{z}</span>)}</div></section>}
-      <section className="card pad stack">
-        <h2>Cómo comprar</h2>
-        <div className="grid g3">
-          <div className="stack" style={{ gap: 6 }}><b style={{ fontSize: 20 }}>1. Registrate</b><p className="muted">Completás los datos de tu comercio. Te aprobamos en el día.</p></div>
-          <div className="stack" style={{ gap: 6 }}><b style={{ fontSize: 20 }}>2. Elegí la marca</b><p className="muted">Ves el catálogo, los precios y las condiciones de cada una.</p></div>
-          <div className="stack" style={{ gap: 6 }}><b style={{ fontSize: 20 }}>3. Mandá el pedido</b><p className="muted">Te confirmamos y te mandamos la factura y el remito.</p></div>
-        </div>
-      </section>
-    </div>
-  );
-}
 
 function AccessNotice({ ctx, to }) {
   const { user, client } = ctx;
@@ -146,22 +104,29 @@ function BrandShop({ ctx, to }) {
   const prodsQ = useCol(approved ? `vendors/${vid}/products` : null, [where('brandId', '==', brandId)], brandId);
   const [sent, setSent] = useState(null);
   const [notes, setNotes] = useState('');
+  const [pay, setPay] = useState('');
   const [busy, setBusy] = useState(false);
   if (!b) return <div className="swrap"><Empty title="Marca no encontrada" action={<Link className="btn" to={to('/tienda')}>Volver a la tienda</Link>} /></div>;
   const prods = prodsQ.data.filter(p => p.active !== false).sort((a, c) => a.name.localeCompare(c.name));
   const cart = carts[brandId] || {};
   const setQty = (id, q) => setCarts(cs => ({ ...cs, [brandId]: { ...(cs[brandId] || {}), [id]: Math.max(0, q) } }));
   const items = Object.entries(cart).filter(([, q]) => q > 0).map(([id, qty]) => { const p = prods.find(x => x.id === id); return p && { productId: id, sku: p.sku, name: p.name, price: p.price, qty }; }).filter(Boolean);
-  const disc = Number(b.cond?.descuento) || 0;
-  const n = net({ items, discount: disc });
-  const min = Number(b.cond?.minimo) || 0;
-  const conds = [['Lista', b.cond?.lista], ['Bonificación', disc ? disc + '% sobre lista' : ''], ['Plazo de pago', b.cond?.plazo], ['Pedido mínimo', min ? fmt(min) + ' sin IVA' : ''], ['Flete', b.cond?.flete], ['Entrega', b.cond?.entrega], ['Formas de pago', b.cond?.pago], ['IVA', b.cond?.iva]].filter(([, x]) => x);
+  const q = quote(b, client, items, pay);
+  const tm = q.terms;
+  const unitFactor = (1 - tm.base / 100) * (1 - tm.extra / 100);
+  const disc = Math.round((1 - unitFactor) * 10000) / 100;
+  const n = q.net;
+  const min = q.minimo;
+  const pesos = v => '$ ' + Number(v).toLocaleString('es-AR');
+  const conds = [['Lista', b.cond?.lista], [tm.hasSpecial ? 'Tu bonificación' : 'Bonificación', disc ? disc + '% sobre lista' : ''], ['Plazo de pago', tm.plazo], ['Pedido mínimo', min ? fmt(min) + ' sin IVA' : ''], ['Flete', b.cond?.flete], ['Entrega', b.cond?.entrega],
+    ['Formas de pago', tm.pagos.length ? tm.pagos.map(x => x.nombre + (Number(x.ajuste) ? ` (${Number(x.ajuste) > 0 ? '-' + x.ajuste : '+' + Math.abs(x.ajuste)}%)` : '')).join(' · ') : b.cond?.pago],
+    ['Bonificación por volumen', tm.escalas.map(e => `${e.extra}% extra desde ${pesos(e.desde)}`).join(' · ')], ['IVA', b.cond?.iva]].filter(([, x]) => x);
 
   const send = async () => {
     if (isOwner) { toast('Estás viendo tu propia tienda. Los pedidos los hacen tus clientes.'); return; }
     setBusy(true);
     try {
-      const r = await createOrder(vid, { clientId: user.uid, clientName: client.name, brandId, brandName: b.name, status: 'recibido', origin: 'cliente', items, discount: disc, commissionRate: Number(b.commission) || 0, docs: [], commissionPaid: false, notes });
+      const r = await createOrder(vid, { clientId: user.uid, clientName: client.name, brandId, brandName: b.name, status: 'recibido', origin: 'cliente', items, discount: q.effective, discountSteps: q.steps, payOption: pay || '', plazo: q.plazo || '', commissionRate: Number(b.commission) || 0, docs: [], commissionPaid: false, notes });
       setCarts(cs => ({ ...cs, [brandId]: {} })); setNotes(''); setSent(r.number); window.scrollTo(0, 0);
     } catch (e) { console.error(e); toast('No se pudo enviar el pedido. Probá de nuevo.'); }
     setBusy(false);
@@ -200,6 +165,18 @@ function BrandShop({ ctx, to }) {
               </div>
             );
           })}</div>
+        )}
+        {items.length > 0 && (
+          <div className="card pad stack">
+            <h2>Tu pedido</h2>
+            {tm.pagos.length > 0 && <Field label="¿Cómo vas a pagar?">
+              <select id="sh-pay" className="input" value={pay} onChange={e => setPay(e.target.value)}>
+                <option value="">{tm.plazo || 'Elegí una opción'}</option>
+                {tm.pagos.map(x => <option key={x.nombre} value={x.nombre}>{x.nombre}{Number(x.ajuste) ? ` (${Number(x.ajuste) > 0 ? x.ajuste + '% de descuento' : Math.abs(x.ajuste) + '% de recargo'})` : ''}</option>)}
+              </select></Field>}
+            <Breakdown subtotal={q.subtotal} steps={q.steps} effective={q.effective} net={n} />
+            {q.nextTier && <div className="notice">Si sumás {fmt(q.nextTier.desde - q.subtotal)} más (a precio de lista) tenés <b style={{ display: 'inline' }}>{q.nextTier.extra}% de bonificación extra</b>.</div>}
+          </div>
         )}
         {items.length > 0 && <Field label="Comentarios para tu pedido (opcional)"><textarea id="sh-notes" className="input" placeholder="Horario de entrega, dirección, etc." value={notes} onChange={e => setNotes(e.target.value)} /></Field>}
       </div>
