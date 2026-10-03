@@ -12,6 +12,7 @@ import { quote } from '../lib/terms';
 import Breakdown from '../components/Breakdown';
 import Footer from '../components/Footer';
 import VendorHome from './VendorHome';
+import { InstallCard, useAppManifest } from '../components/Install';
 
 const MAIN_HOST = (import.meta.env.VITE_MAIN_HOSTS || '').split(',')[0].trim();
 
@@ -21,6 +22,7 @@ export default function VendorSite({ vendorId: vid, base }) {
   const { user, profile, logout } = useAuth();
   const client = useDocData(user && user.uid !== vid ? `vendors/${vid}/clients/${user.uid}` : null);
   const [carts, setCarts] = useState({});
+  useAppManifest({ start: (base || '') + '/tienda', name: vendor.data?.business || 'Tienda', color: vendor.data?.color });
   useEffect(() => { if (vendor.data) document.title = vendor.data.business; }, [vendor.data]);
 
   if (vendor.loading) return <Loading />;
@@ -86,6 +88,7 @@ function ShopHome({ ctx, to }) {
     <div className="swrap">
       <div className="stack" style={{ gap: 6 }}><h1>{client?.name ? `Hola, ${client.contact?.split(' ')[0] || client.name}` : 'Tienda'}</h1><p className="muted">Elegí una marca para ver su catálogo y armar tu pedido. Cada marca factura por separado.</p></div>
       {!approved && <AccessNotice ctx={ctx} to={to} />}
+      {approved && <InstallCard title="Tené esta tienda en tu celular" text="Instalala como app para hacer pedidos y ver tus facturas con un toque." storageKey={'rc-install-shop-' + ctx.vid} />}
       <div className="logowall">{brands.map(b => (
         <Link key={b.id} to={to('/tienda/' + b.id)} className="card lw">
           <BrandMark b={b} size="l" /><b style={{ fontSize: 19 }}>{b.name}</b><span className="muted small">{b.tag}</span>

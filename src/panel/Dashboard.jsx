@@ -4,6 +4,7 @@ import { usePanel } from './Panel';
 import { BrandMark, Empty, Icon, useToast } from '../components/ui';
 import { MESES, STAGES, commOf, fdate, fmt, longDate, net, stageOf, today } from '../lib/format';
 import { loadSampleData } from '../lib/orders';
+import { InstallCard } from '../components/Install';
 
 export default function Dashboard() {
   const { vid, v, orders, brands, clients, products, loading } = usePanel();
@@ -68,6 +69,8 @@ export default function Dashboard() {
           <div><button className="btn" onClick={sample} disabled={busy}>{busy ? 'Cargando ejemplos…' : 'Cargar datos de ejemplo'}</button></div>
         </div>
       )}
+
+      <InstallCard title="Tené tu panel en el celular" text="Instalalo como app: cargás pedidos en la visita, mandás facturas por WhatsApp y seguís tus comisiones desde el teléfono." />
 
       <div className="kpis">
         <div className="card kpi"><span className="label">Vendido este mes</span><span className="v">{fmt(mOrders.reduce((a, o) => a + net(o), 0))}</span><span className="muted small">{mOrders.length} pedidos, sin IVA</span></div>

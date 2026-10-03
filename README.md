@@ -171,6 +171,14 @@ Qué pasa después: cuando el vendedor autoriza el pago, su plan pasa a ese plan
 
 ---
 
+## La app en el celular
+
+- **Vendedores:** guardan `https://TU-DOMINIO/panel`. Al entrar desde el celular, en Inicio aparece “Tené tu panel en el celular” con el botón **Instalar la app** (Android/Chrome) o las instrucciones para iPhone (Safari → Compartir → Agregar a inicio). Abre directo en su panel.
+- **Clientes:** instalan la tienda de su representante desde `TU-DOMINIO/v/nombre/tienda` (o su dominio propio). La app queda con el nombre del representante y abre en su tienda.
+- El ícono y el nombre de cada app se arman solos (`/api/manifest`).
+
+---
+
 ## Cómo está organizada la información (Firestore)
 
 ```

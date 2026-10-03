@@ -6,7 +6,7 @@ import { BrandMark, ConfirmButton, Drawer, Empty, Field, FileButton, Icon, RowsE
 import { fmt } from '../lib/format';
 import { uploadPublicImage } from '../lib/upload';
 
-export const COLORS = ['#1B5E86', '#1F6F5C', '#8C5A06', '#9A3D4E', '#5B4A8C', '#2B5C9E', '#8A5A2B', '#3E4A5C'];
+export const COLORS = ['#1F4FD8', '#1B5E86', '#1F6F5C', '#8C5A06', '#9A3D4E', '#5B4A8C', '#2B5C9E', '#8A5A2B', '#3E4A5C'];
 
 export default function Brands() {
   const { brands, products, limits } = usePanel();

@@ -5,9 +5,10 @@ import { auth } from '../firebase';
 import { authError, useAuth } from '../lib/auth';
 import { Field } from '../components/ui';
 import { RoleChooser, ClientFinder } from './RoleChooser';
+import Logo from '../components/Logo';
 
 export function BrandLine() {
-  return <Link to="/" className="brandline"><i>RC</i>Representaciones comerciales</Link>;
+  return <Link to="/" className="brandline" aria-label="Representaciones comerciales — inicio"><Logo size={44} /></Link>;
 }
 
 export default function Login() {

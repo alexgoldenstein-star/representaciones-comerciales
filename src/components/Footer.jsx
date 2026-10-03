@@ -11,7 +11,7 @@ const social = (kind, v) => {
 const waUrl = n => { const d = String(n || '').replace(/\D/g, ''); return d ? `https://wa.me/${d.startsWith('54') ? d : '549' + d}` : ''; };
 
 // Pie de página corporativo: datos de la empresa, contacto, navegación y redes.
-export default function Footer({ d, links = [], bottom, color }) {
+export default function Footer({ d, links = [], bottom, color, mark }) {
   const year = new Date().getFullYear();
   const nets = [['Instagram', social('instagram', d.instagram)], ['Facebook', social('facebook', d.facebook)], ['LinkedIn', social('linkedin', d.linkedin)], ['Sitio web', ext(d.website)]].filter(([, u]) => u);
   return (
@@ -19,7 +19,7 @@ export default function Footer({ d, links = [], bottom, color }) {
       <div className="cfoot-in">
         <div className="cfoot-col" style={{ gap: 12 }}>
           <div className="row" style={{ gap: 12, flexWrap: 'nowrap' }}>
-            <div className="cfoot-logo" style={{ background: color || '#1B5E86' }}>{d.logoUrl ? <img src={d.logoUrl} alt="" /> : initials(d.name)}</div>
+            {mark || <div className="cfoot-logo" style={{ background: color || '#1B5E86' }}>{d.logoUrl ? <img src={d.logoUrl} alt="" /> : initials(d.name)}</div>}
             <b style={{ fontSize: 20 }}>{d.name}</b>
           </div>
           {d.tagline && <p>{d.tagline}</p>}

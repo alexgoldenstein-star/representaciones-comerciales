@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { BrandMark, Empty, Icon } from '../components/ui';
+import { CountUp } from '../lib/motion';
 
 export const DEFAULT_SERVICES = [
   { title: 'Atención personalizada', text: 'Visitamos tu comercio, te asesoramos sobre productos y novedades de cada marca.' },
@@ -15,19 +16,19 @@ export default function VendorHome({ ctx, to }) {
   const services = (v.services || []).filter(s => s.title);
   const year = new Date().getFullYear();
   const stats = [
-    brands.length ? [brands.length, brands.length === 1 ? 'marca representada' : 'marcas representadas'] : null,
-    v.since && Number(v.since) < year ? [year - Number(v.since) + ' años', 'de trayectoria'] : null,
-    zones.length ? [zones.length, zones.length === 1 ? 'zona de cobertura' : 'zonas de cobertura'] : null,
-    ['24 h', 'para hacer pedidos online'],
+    brands.length ? [<CountUp to={brands.length} />, brands.length === 1 ? 'marca representada' : 'marcas representadas'] : null,
+    v.since && Number(v.since) < year ? [<CountUp to={year - Number(v.since)} suffix=" años" />, 'de trayectoria'] : null,
+    zones.length ? [<CountUp to={zones.length} />, zones.length === 1 ? 'zona de cobertura' : 'zonas de cobertura'] : null,
+    [<CountUp to={24} suffix=" h" />, 'para hacer pedidos online'],
   ].filter(Boolean);
   const mapUrl = v.address ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(v.address + (v.city ? ', ' + v.city : '')) : null;
 
   return (
     <>
-      <section className="vhero">
-        {v.bannerUrl && <div className="vhero-bg" style={{ backgroundImage: `url(${v.bannerUrl})` }} />}
+      <section className={'vhero' + (v.bannerUrl ? ' has-banner' : '')}>
+        {v.bannerUrl ? <div className="vhero-bg" style={{ backgroundImage: `url(${v.bannerUrl})` }} /> : <><div className="lp-aurora" aria-hidden="true"><i /><i /></div><div className="vhero-grid" aria-hidden="true" /></>}
         <div className="vhero-in">
-          <span className="kick">Representaciones comerciales{v.since ? ' · desde ' + v.since : ''}</span>
+          <span className="lp-badge"><span className="live" /> Representación comercial{v.since ? ' · desde ' + v.since : ''}</span>
           <h1>{v.heroTitle || v.business}</h1>
           <p>{v.heroSubtitle || `Representamos ${brands.length || 'varias'} marcas para comercios. Conocé los catálogos y hacé tu pedido online.`}</p>
           <div className="row">
@@ -39,9 +40,9 @@ export default function VendorHome({ ctx, to }) {
         </div>
       </section>
 
-      <div className="vstats"><div className="vstats-in">{stats.map(([n, l]) => <div key={l}><b>{n}</b><span className="muted">{l}</span></div>)}</div></div>
+      <div className="vstats"><div className="vstats-in">{stats.map(([n, l]) => <div key={l} className="reveal"><b>{n}</b><span className="muted">{l}</span></div>)}</div></div>
 
-      <section className="vsec" id="marcas">
+      <section className="vsec reveal" id="marcas">
         <h2>Marcas que representamos</h2>
         {brands.length === 0 ? <div className="card"><Empty title="Pronto vas a ver las marcas acá" /></div> : (
           <div className="logowall">{brands.map(b => (
@@ -53,7 +54,7 @@ export default function VendorHome({ ctx, to }) {
       </section>
 
       {(v.about || v.aboutImageUrl) && (
-        <section className="vsec" id="nosotros">
+        <section className="vsec reveal" id="nosotros">
           <div className="vabout">
             <div className="stack">
               <h2>{v.aboutTitle || 'Quiénes somos'}</h2>
@@ -64,30 +65,30 @@ export default function VendorHome({ ctx, to }) {
         </section>
       )}
 
-      <section className="vsec">
+      <section className="vsec reveal">
         <h2>Qué ofrecemos</h2>
-        <div className="vserv">{(services.length ? services : DEFAULT_SERVICES).map(s => (
-          <div key={s.title} className="card"><h3>{s.title}</h3><p className="muted">{s.text}</p></div>
+        <div className="vserv">{(services.length ? services : DEFAULT_SERVICES).map((s, i) => (
+          <div key={s.title} className="card"><span className="vnum">0{i + 1}</span><h3>{s.title}</h3><p className="muted">{s.text}</p></div>
         ))}</div>
       </section>
 
-      <section className="vsec">
+      <section className="vsec reveal">
         <h2>Cómo comprar</h2>
         <div className="vserv">
-          <div className="card"><h3>1. Registrate</h3><p className="muted">Completás los datos de tu comercio y te damos de alta.</p></div>
-          <div className="card"><h3>2. Elegí la marca</h3><p className="muted">Ves el catálogo, tus precios y las condiciones de cada una.</p></div>
-          <div className="card"><h3>3. Mandá el pedido</h3><p className="muted">Te confirmamos y te enviamos la factura y el remito.</p></div>
+          <div className="card"><span className="vnum">1</span><h3>Registrate</h3><p className="muted">Completás los datos de tu comercio y te damos de alta.</p></div>
+          <div className="card"><span className="vnum">2</span><h3>Elegí la marca</h3><p className="muted">Ves el catálogo, tus precios y las condiciones de cada una.</p></div>
+          <div className="card"><span className="vnum">3</span><h3>Mandá el pedido</h3><p className="muted">Te confirmamos y te enviamos la factura y el remito.</p></div>
         </div>
       </section>
 
       {zones.length > 0 && (
-        <section className="vsec">
+        <section className="vsec reveal">
           <h2>Zonas de cobertura</h2>
           <div className="row">{zones.map(z => <span key={z} className="pill confirmado plain" style={{ fontSize: 17, padding: '8px 16px' }}>{z}</span>)}</div>
         </section>
       )}
 
-      <section className="vsec" id="contacto" style={{ paddingBottom: 8 }}>
+      <section className="vsec reveal" id="contacto" style={{ paddingBottom: 8 }}>
         <h2>Contacto</h2>
         <div className="vcontact">
           <div className="card pad stack" style={{ gap: 10 }}>

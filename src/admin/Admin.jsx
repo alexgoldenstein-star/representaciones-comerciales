@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { collection, deleteDoc, doc, getCountFromServer, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { LogoMark } from '../components/Logo';
 import { DEFAULT_PRICING, usePricing, useCompany, DEFAULT_COMPANY } from '../lib/siteConfig';
 import { db, firebaseConfig } from '../firebase';
 import { useAuth } from '../lib/auth';
@@ -27,7 +28,7 @@ export default function Admin() {
   return (
     <div className="app">
       <aside className="side">
-        <div className="me"><div className="logo"><Icon n="shield" /></div><div><b>Administración</b><span className="muted small">Representaciones comerciales</span></div></div>
+        <div className="me"><LogoMark size={48} /><div><b>Administración</b><span className="muted small">Representaciones comerciales</span></div></div>
         <nav className="nav">{tabs.map(t => <NavLink key={t.to} to={t.to} end={t.end}><Icon n={t.i} />{t.l}{t.n > 0 && <span className="count">{t.n}</span>}</NavLink>)}</nav>
         <div className="stack" style={{ marginTop: 'auto', gap: 10 }}>
           {profile?.role === 'vendedor' && <Link className="btn sm" to="/panel"><Icon n="home" />Mi panel de vendedor</Link>}

@@ -23,7 +23,7 @@ export async function createVendor(uid, f) {
     tx.set(sref, { vendorId: uid });
     tx.set(doc(db, 'vendors', uid), {
       ownerUid: uid, name: f.name.trim(), business: f.business.trim(), whatsapp: f.whatsapp.replace(/\D/g, ''), email: f.email.trim(),
-      zone: '', about: '', slug, logoUrl: null, color: '#1B5E86',
+      zone: '', about: '', slug, logoUrl: null, color: '#1F4FD8',
       status: 'activo', plan: 'prueba', trialEnds: trial.toISOString().slice(0, 10),
       domain: '', domainStatus: 'sin', createdAt: serverTimestamp(),
     });

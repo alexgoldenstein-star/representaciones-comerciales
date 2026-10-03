@@ -13,6 +13,8 @@ import Commissions from './Commissions';
 import MySite from './MySite';
 import MyPlan from './MyPlan';
 import { usePricing, planLimits } from '../lib/siteConfig';
+import { useAppManifest } from '../components/Install';
+import { LogoMark } from '../components/Logo';
 import { today } from '../lib/format';
 
 const Ctx = createContext(null);
@@ -39,6 +41,7 @@ export default function Panel() {
   const clients = useCol(`vendors/${vid}/clients`);
   const [more, setMore] = useState(false);
   const { pricing } = usePricing();
+  useAppManifest({ start: '/panel', name: 'Mi panel · Representaciones', color: '#1F4FD8' });
 
   if (vendor.loading) return <Loading />;
   if (!vendor.data) return <Navigate to="/registro" replace />;
@@ -76,6 +79,7 @@ export default function Panel() {
             ))}
           </nav>
           <div className="stack" style={{ marginTop: 'auto', gap: 10 }}>
+            <div className="row" style={{ gap: 8, padding: '0 6px', flexWrap: 'nowrap' }}><LogoMark size={26} /><span className="muted small" style={{ lineHeight: 1.2 }}>Representaciones comerciales</span></div>
             <a className="btn sm" href={siteUrl} target="_blank" rel="noreferrer"><Icon n="store" />Ver mi tienda</a>
             {isSuper && <Link className="btn sm" to="/admin"><Icon n="shield" />Administración</Link>}
             <button className="btn sm" onClick={logout}><Icon n="out" />Salir</button>
