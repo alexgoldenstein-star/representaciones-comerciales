@@ -7,6 +7,8 @@ import { ToastProvider } from './components/ui';
 import './styles.css';
 import { initReveal } from './lib/motion';
 import './components/Install';
+import { captureRef } from './lib/referral';
+captureRef();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

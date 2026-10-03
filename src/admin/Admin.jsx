@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { collection, deleteDoc, doc, getCountFromServer, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { LogoMark } from '../components/Logo';
+import { refLink } from '../lib/referral';
+import { useDocData } from '../lib/hooks';
+import { slugify } from '../lib/format';
 import { DEFAULT_PRICING, usePricing, useCompany, DEFAULT_COMPANY } from '../lib/siteConfig';
 import { db, firebaseConfig } from '../firebase';
 import { useAuth } from '../lib/auth';
@@ -24,6 +27,7 @@ export default function Admin() {
     { to: '/admin/interesados', l: 'Interesados', i: 'inbox', n: newLeads },
     { to: '/admin/precios', l: 'Precios', i: 'money', n: 0 },
     { to: '/admin/empresa', l: 'Empresa', i: 'file', n: 0 },
+    { to: '/admin/referidos', l: 'Referidos', i: 'clients', n: 0 },
   ];
   return (
     <div className="app">
@@ -44,6 +48,7 @@ export default function Admin() {
             <Route path="interesados" element={<Leads leads={leads.data} />} />
             <Route path="precios" element={<Pricing />} />
             <Route path="empresa" element={<Company />} />
+            <Route path="referidos" element={<Referrals vendors={vendors.data} />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>
         </div>
@@ -122,7 +127,7 @@ function VendorDrawer({ v, onClose }) {
       foot={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn primary" onClick={save}>Guardar cambios</button></>}>
       <dl className="dl">
         <dt>Titular</dt><dd>{v.name}</dd><dt>Email</dt><dd>{v.email}</dd><dt>WhatsApp</dt><dd>{v.whatsapp}</dd>
-        <dt>Dirección</dt><dd>/v/{v.slug}</dd><dt>Dominio</dt><dd>{v.domain || '—'} {v.domain && `(${v.domainStatus})`}</dd><dt>Alta</dt><dd>{fdate(tsDate(v.createdAt))}</dd>
+        <dt>Dirección</dt><dd>/v/{v.slug}</dd><dt>Dominio</dt><dd>{v.domain || '—'} {v.domain && `(${v.domainStatus})`}</dd><dt>Alta</dt><dd>{fdate(tsDate(v.createdAt))}</dd>{v.ref && <><dt>Llegó por</dt><dd>{v.ref}</dd></>}
       </dl>
       {counts && <div className="kpis">
         <div className="card kpi"><span className="label">Marcas</span><span className="v">{counts.b}</span></div>
@@ -366,6 +371,75 @@ function Company() {
         <Field label="Política de privacidad" hint="Se ve en /privacidad"><textarea id="co-priv" className="input" style={{ minHeight: 220 }} value={f.privacy} onChange={e => set('privacy', e.target.value)} /></Field>
         <div className="row"><ConfirmButton className="btn" question="¿Volver a los textos de ejemplo?" yes="Sí" onConfirm={() => setF(x => ({ ...x, terms: DEFAULT_COMPANY.terms, privacy: DEFAULT_COMPANY.privacy }))}>Restaurar textos de ejemplo</ConfirmButton>
           <button className="btn primary" onClick={save} disabled={busy}>{busy ? 'Publicando…' : 'Publicar cambios'}</button></div>
+      </section>
+    </>
+  );
+}
+
+const DEFAULT_REWARD = 'Por cada representante que se suscriba con tu link, te regalamos 1 mes de tu plan.';
+
+function Referrals({ vendors }) {
+  const toast = useToast();
+  const partners = useCol('partners');
+  const cfg = useDocData('config/referrals');
+  const [reward, setReward] = useState(null);
+  const [np, setNp] = useState({ name: '', code: '', whatsapp: '', rate: 20, months: 12 });
+  useEffect(() => { if (!cfg.loading && reward === null) setReward(cfg.data?.vendorReward || DEFAULT_REWARD); }, [cfg.loading]);
+  const paying = v => v.subscription?.status === 'authorized';
+  const byRef = code => vendors.filter(v => v.ref === code);
+  const addPartner = async () => {
+    const code = slugify(np.code || np.name);
+    if (!np.name.trim() || code.length < 3) { toast('Poné el nombre del socio (y un código de al menos 3 letras)'); return; }
+    if (vendors.some(v => v.slug === code) || partners.data.some(p => p.id === code)) { toast('Ese código ya existe. Elegí otro.'); return; }
+    await setDoc(doc(db, 'partners', code), { name: np.name.trim(), whatsapp: np.whatsapp.trim(), rate: Number(np.rate) || 0, months: Number(np.months) || 0, active: true, createdAt: serverTimestamp() });
+    setNp({ name: '', code: '', whatsapp: '', rate: 20, months: 12 }); toast('Socio agregado');
+  };
+  const vendorRefs = vendors.filter(v => v.ref && vendors.some(x => x.slug === v.ref));
+  const referrers = [...new Set(vendorRefs.map(v => v.ref))];
+  return (
+    <>
+      <div className="head"><div className="grow"><h1>Referidos</h1><p>Quién trae a cada vendedor, y cuánto le corresponde.</p></div></div>
+
+      <section className="card pad stack">
+        <h2>Socios comerciales</h2>
+        <p className="muted">Personas que venden la plataforma por vos (por ejemplo, viajantes o contadores del rubro). Cada uno tiene su link; los vendedores que se registran con él quedan asociados.</p>
+        <div className="grid g3">
+          <Field label="Nombre"><input id="pn-n" className="input" value={np.name} onChange={e => setNp({ ...np, name: e.target.value })} /></Field>
+          <Field label="Código del link" hint="Ej.: carlos"><input id="pn-c" className="input" value={np.code} placeholder={slugify(np.name)} onChange={e => setNp({ ...np, code: slugify(e.target.value) })} /></Field>
+          <Field label="WhatsApp"><input id="pn-w" className="input" value={np.whatsapp} onChange={e => setNp({ ...np, whatsapp: e.target.value })} /></Field>
+          <Field label="Comisión (% de cada cuota)"><input id="pn-r" className="input" inputMode="numeric" value={np.rate} onChange={e => setNp({ ...np, rate: e.target.value })} /></Field>
+          <Field label="Durante cuántos meses" hint="0 = mientras siga pagando"><input id="pn-m" className="input" inputMode="numeric" value={np.months} onChange={e => setNp({ ...np, months: e.target.value })} /></Field>
+          <div style={{ alignSelf: 'end' }}><button className="btn primary block" onClick={addPartner}><Icon n="plus" />Agregar socio</button></div>
+        </div>
+        <div className="card">{partners.data.length === 0 ? <Empty title="Todavía no cargaste socios" /> : <div className="list">{partners.data.map(p => {
+          const refs = byRef(p.id); const pay = refs.filter(paying);
+          const monthly = pay.reduce((a, v) => a + (Number(v.subscription?.amount) || 0), 0) * (Number(p.rate) || 0) / 100;
+          return (
+            <div key={p.id} className="item" style={{ flexWrap: 'wrap' }}>
+              <div className="grow"><div className="t">{p.name}</div><div className="s">{refLink(p.id)} · {p.rate}%{p.months ? ` por ${p.months} meses` : ' mientras paguen'}</div></div>
+              <span className="pill plain">{refs.length} registrados</span>
+              <span className="pill activo">{pay.length} pagando</span>
+              <span className="amount">$ {Math.round(monthly).toLocaleString('es-AR')} / mes</span>
+              <button className="btn sm" onClick={async () => toast(await copyText(refLink(p.id)) ? 'Link copiado' : 'No se pudo copiar')}><Icon n="copy" />Link</button>
+              <ConfirmButton className="btn sm danger" question="¿Borrar socio?" yes="Borrar" onConfirm={() => deleteDoc(doc(db, 'partners', p.id))}>Borrar</ConfirmButton>
+            </div>
+          );
+        })}</div>}</div>
+      </section>
+
+      <section className="card pad stack">
+        <h2>Vendedores que recomiendan</h2>
+        <Field label="Beneficio que ven los vendedores en su panel" hint="Se muestra en Mi plan → Recomendá y ganá.">
+          <textarea id="rf-rw" className="input" style={{ minHeight: 80 }} value={reward ?? ''} onChange={e => setReward(e.target.value)} />
+        </Field>
+        <div><button className="btn" onClick={async () => { await setDoc(doc(db, 'config', 'referrals'), { vendorReward: reward }, { merge: true }); toast('Guardado'); }}>Guardar beneficio</button></div>
+        <div className="card">{referrers.length === 0 ? <Empty title="Todavía ningún vendedor recomendó a otro" /> : <div className="list">{referrers.map(code => {
+          const who = vendors.find(v => v.slug === code); const refs = byRef(code);
+          return (
+            <div key={code} className="item"><div className="grow"><div className="t">{who?.business || code}</div><div className="s">{refs.map(r => r.business + (paying(r) ? ' (pagando)' : '')).join(' · ')}</div></div>
+              <span className="pill activo">{refs.filter(paying).length} pagando</span><span className="pill plain">{refs.length} registrados</span></div>
+          );
+        })}</div>}</div>
       </section>
     </>
   );

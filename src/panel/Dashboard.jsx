@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { usePanel } from './Panel';
 import { BrandMark, Empty, Icon, useToast } from '../components/ui';
 import { MESES, STAGES, commOf, fdate, fmt, longDate, net, stageOf, today } from '../lib/format';
-import { loadSampleData } from '../lib/orders';
+import { loadDemo } from '../lib/demo';
 import { InstallCard } from '../components/Install';
 
 export default function Dashboard() {
@@ -31,7 +31,7 @@ export default function Dashboard() {
 
   const sample = async () => {
     setBusy(true);
-    try { await loadSampleData(vid); toast('Listo: cargamos 3 marcas, artículos, clientes y pedidos de ejemplo'); }
+    try { await loadDemo(vid); toast('Listo: cargamos la demo completa (5 marcas, 28 artículos, 6 clientes y 17 pedidos)'); }
     catch (e) { console.error(e); toast('No se pudieron cargar los ejemplos. Probá de nuevo.'); }
     setBusy(false);
   };
@@ -64,9 +64,9 @@ export default function Dashboard() {
             ))}
           </div>
           <div className="notice">
-            <div className="grow"><b>¿Querés ver cómo funciona antes de cargar lo tuyo?</b>Cargamos 3 marcas, artículos, clientes y pedidos de ejemplo. Después los podés borrar.</div>
+            <div className="grow"><b>¿Querés ver todo funcionando antes de cargar lo tuyo?</b>Cargamos una demo completa: 5 marcas con logos y condiciones, artículos con imagen, clientes con acuerdos especiales y pedidos de los últimos 6 meses. Después la borrás con un botón.</div>
           </div>
-          <div><button className="btn" onClick={sample} disabled={busy}>{busy ? 'Cargando ejemplos…' : 'Cargar datos de ejemplo'}</button></div>
+          <div><button className="btn" onClick={sample} disabled={busy}>{busy ? 'Cargando la demo… (puede tardar un minuto)' : 'Cargar demo completa'}</button></div>
         </div>
       )}
 

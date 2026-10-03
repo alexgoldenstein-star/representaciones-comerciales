@@ -6,6 +6,7 @@ import { auth, db } from '../firebase';
 import { authError, useAuth } from '../lib/auth';
 import { slugify, today } from '../lib/format';
 import { mergePricing } from '../lib/siteConfig';
+import { getRef } from '../lib/referral';
 import { Field } from '../components/ui';
 import { BrandLine } from './Login';
 import { RoleChooser, ClientFinder } from './RoleChooser';
@@ -25,7 +26,7 @@ export async function createVendor(uid, f) {
       ownerUid: uid, name: f.name.trim(), business: f.business.trim(), whatsapp: f.whatsapp.replace(/\D/g, ''), email: f.email.trim(),
       zone: '', about: '', slug, logoUrl: null, color: '#1F4FD8',
       status: 'activo', plan: 'prueba', trialEnds: trial.toISOString().slice(0, 10),
-      domain: '', domainStatus: 'sin', createdAt: serverTimestamp(),
+      domain: '', domainStatus: 'sin', createdAt: serverTimestamp(), ref: getRef() && getRef() !== slug ? getRef() : '',
     });
     tx.set(doc(db, 'users', uid), { role: 'vendedor', vendorId: uid, name: f.name.trim(), email: f.email.trim() });
   });

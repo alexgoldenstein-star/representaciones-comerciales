@@ -44,6 +44,11 @@ service cloud.firestore {
       allow write: if isSuper();
     }
 
+    // Socios comerciales que recomiendan la plataforma (sólo los ve y edita el admin).
+    match /partners/{code} {
+      allow read, write: if isSuper();
+    }
+
     // Interesados que llegan desde la landing de venta.
     match /leads/{id} {
       allow create: if request.resource.data.keys().hasOnly(['nombre', 'whatsapp', 'email', 'marcas', 'rubro', 'createdAt', 'estado'])
@@ -58,7 +63,7 @@ service cloud.firestore {
         && request.resource.data.plan == 'prueba'
         && request.resource.data.domainStatus == 'sin';
       allow update: if isSuper() || (isOwner(vid)
-        && !changed().hasAny(['status', 'plan', 'ownerUid', 'createdAt', 'dnsRecords', 'trialEnds', 'adminNotes', 'subscription', 'lastPayment'])
+        && !changed().hasAny(['status', 'plan', 'ownerUid', 'createdAt', 'dnsRecords', 'trialEnds', 'adminNotes', 'subscription', 'lastPayment', 'ref'])
         && (!changed().hasAny(['domainStatus']) || request.resource.data.domainStatus in ['sin', 'pendiente']));
       allow delete: if isSuper();
 

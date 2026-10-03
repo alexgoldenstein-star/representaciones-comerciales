@@ -4,6 +4,12 @@ import { auth } from '../firebase';
 import { usePanel } from './Panel';
 import { Field, Icon, useToast } from '../components/ui';
 import { PLANS, fdate, fmt, today } from '../lib/format';
+import { query, collection, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useEffect } from 'react';
+import { useDocData } from '../lib/hooks';
+import { refLink } from '../lib/referral';
+import { copyText } from '../components/ui';
 
 const SUB_STATUS = { pending: 'Esperando que autorices el pago', authorized: 'Activa · se cobra todos los meses', paused: 'Pausada', cancelled: 'Cancelada' };
 
@@ -16,6 +22,10 @@ export default function MyPlan() {
   const current = pricing.plans.find(p => p.key === v.plan);
   const sub = v.subscription;
   const activeClients = clients.filter(c => c.status === 'activo').length;
+  const cfg = useDocData('config/referrals');
+  const [referred, setReferred] = useState(null);
+  useEffect(() => { getDocs(query(collection(db, 'vendors'), where('ref', '==', v.slug))).then(s => setReferred(s.docs.map(d => d.data()))).catch(() => setReferred([])); }, [v.slug]);
+  const myLink = refLink(v.slug);
 
   const subscribe = async plan => {
     if (!email.includes('@')) { toast('Escribí el email de tu cuenta de Mercado Pago'); return; }
@@ -70,6 +80,17 @@ export default function MyPlan() {
           })}
         </div>
         <p className="muted small">El cobro es mensual y automático con Mercado Pago (tarjeta de crédito, débito o dinero en cuenta). Lo podés cancelar cuando quieras.</p>
+      </section>
+
+      <section className="card pad stack install-card">
+        <h2>Recomendá y ganá</h2>
+        <p>{cfg.data?.vendorReward || 'Por cada representante que se suscriba con tu link, te regalamos 1 mes de tu plan.'}</p>
+        <div className="input" style={{ wordBreak: 'break-all', background: 'var(--surface-2)' }}>{myLink}</div>
+        <div className="row">
+          <button className="btn" onClick={async () => toast(await copyText(myLink) ? 'Link copiado' : 'No se pudo copiar')}><Icon n="copy" />Copiar mi link</button>
+          <a className="btn ok" target="_blank" rel="noreferrer" href={'https://wa.me/?text=' + encodeURIComponent('Te recomiendo la plataforma que uso para mis marcas, pedidos y comisiones. Probala gratis: ' + myLink)}><Icon n="send" />Compartir por WhatsApp</a>
+        </div>
+        <p className="muted">{referred === null ? 'Cargando…' : referred.length ? `Se registraron ${referred.length} con tu link: ${referred.map(r => r.business).join(', ')}.` : 'Todavía nadie se registró con tu link.'}</p>
       </section>
     </>
   );

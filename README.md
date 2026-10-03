@@ -179,6 +179,20 @@ Qué pasa después: cuando el vendedor autoriza el pago, su plan pasa a ese plan
 
 ---
 
+## Demo para mostrar
+
+Creá una cuenta de vendedor (por ejemplo con la dirección `ejemplo`) y en Inicio tocá **Cargar demo completa**: 5 marcas ficticias con logo y condiciones (formas de pago, escalas por volumen), 28 artículos con imagen, 6 clientes (dos con acuerdos especiales y uno esperando aprobación) y 17 pedidos de los últimos 6 meses en todos los estados, con facturas, remitos y comisiones. Se borra todo junto desde **Mi sitio → Datos de ejemplo**.
+
+---
+
+## Referidos y socios comerciales
+
+- Cualquier link a la plataforma con `?ref=codigo` deja registrado quién trajo al vendedor (queda guardado aunque navegue antes de registrarse).
+- **Administración → Referidos:** cargás socios comerciales con su código, porcentaje y meses de comisión; ves cuántos se registraron, cuántos pagan y cuánto le corresponde por mes a cada uno. También ves qué vendedores recomendaron a otros.
+- **Panel → Mi plan → Recomendá y ganá:** cada vendedor tiene su link (`/?ref=su-direccion`) para compartir por WhatsApp y ve quiénes se registraron con él. El beneficio que se muestra lo editás vos.
+
+---
+
 ## Cómo está organizada la información (Firestore)
 
 ```
@@ -189,6 +203,8 @@ domains/{dominio}                → dominio propio → vendedor (sólo lo escri
 leads/{id}                       → interesados de la página de venta
 config/pricing                   → planes, precios, límites y días de prueba (Administración → Precios)
 config/company                   → datos de tu empresa y textos legales (Administración → Empresa)
+config/referrals                 → beneficio para vendedores que recomiendan
+partners/{codigo}                → socios comerciales (sólo admin)
 vendors/{uid}                    → datos del vendedor, plan, estado y dominio
   ├─ brands/{id}                 → marcas, condiciones y comisión
   ├─ products/{id}               → artículos (sólo los ven clientes aprobados)
