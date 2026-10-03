@@ -12,6 +12,7 @@ import Panel from './panel/Panel';
 import Admin from './admin/Admin';
 import VendorSite from './site/VendorSite';
 import Legal from './pages/Legal';
+import AdminSetup from './admin/AdminSetup';
 
 const MAIN_HOSTS = (import.meta.env.VITE_MAIN_HOSTS || '').split(',').map(cleanHost).filter(Boolean);
 const host = cleanHost(window.location.hostname);
@@ -38,7 +39,7 @@ function RequireRole({ role, children }) {
   const { user, profile, isSuper, loading } = useAuth();
   if (loading) return <Loading />;
   if (!user) return <Navigate to="/ingresar" replace />;
-  if (role === 'super' && !isSuper) return <Navigate to="/panel" replace />;
+  if (role === 'super' && !isSuper) return <AdminSetup />;
   if (role === 'vendedor' && profile?.role !== 'vendedor' && !isSuper) return <Navigate to="/ingresar" replace />;
   if (role === 'vendedor' && isSuper && profile?.role !== 'vendedor') return <Navigate to="/admin" replace />;
   return children;
