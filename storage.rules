@@ -1,0 +1,21 @@
+rules_version = '2';
+// Archivos: logos e imágenes (públicos) y comprobantes (sólo el vendedor y el cliente del pedido).
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSuper() {
+      return request.auth != null && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+    function isOwner(vid) { return request.auth != null && (request.auth.uid == vid || isSuper()); }
+
+    match /vendors/{vid}/public/{path=**} {
+      allow read: if true;
+      allow create, update: if isOwner(vid) && request.resource.size < 5 * 1024 * 1024 && request.resource.contentType.matches('image/.*');
+      allow delete: if isOwner(vid);
+    }
+    match /vendors/{vid}/docs/{clientId}/{path=**} {
+      allow read: if request.auth != null && (isOwner(vid) || request.auth.uid == clientId);
+      allow create, update: if isOwner(vid) && request.resource.size < 10 * 1024 * 1024;
+      allow delete: if isOwner(vid);
+    }
+  }
+}

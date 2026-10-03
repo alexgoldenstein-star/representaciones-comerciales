@@ -1,0 +1,98 @@
+rules_version = '2';
+// Reglas de seguridad de Representaciones comerciales.
+// - Cada vendedor es dueño de vendors/{su uid} y de todo lo que cuelga de ahí.
+// - El superadministrador (vos) está en admins/{uid}. Ese documento se crea a mano desde la consola.
+// - Los clientes de un vendedor sólo ven precios y hacen pedidos si el vendedor los aprobó.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isSuper() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function isOwner(vid) { return signedIn() && request.auth.uid == vid; }
+    function clientPath(vid) { return /databases/$(database)/documents/vendors/$(vid)/clients/$(request.auth.uid); }
+    function isClient(vid) { return signedIn() && exists(clientPath(vid)) && get(clientPath(vid)).data.status == 'activo'; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    match /admins/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isSuper());
+      allow write: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isSuper();
+      allow create: if signedIn() && request.auth.uid == uid && request.resource.data.role in ['vendedor', 'cliente'];
+      allow update: if isSuper() || (signedIn() && request.auth.uid == uid && !changed().hasAny(['role']));
+      allow delete: if isSuper();
+    }
+
+    match /slugs/{slug} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.vendorId == request.auth.uid;
+      allow delete: if isSuper() || (signedIn() && resource.data.vendorId == request.auth.uid);
+      allow update: if isSuper();
+    }
+
+    // Dominio propio → vendedor. Sólo lo escribe el superadministrador al conectar el dominio.
+    match /domains/{host} {
+      allow read: if true;
+      allow write: if isSuper();
+    }
+
+    // Configuración general del sitio (precios de la página de venta). La ve cualquiera, la edita sólo el admin.
+    match /config/{id} {
+      allow read: if true;
+      allow write: if isSuper();
+    }
+
+    // Interesados que llegan desde la landing de venta.
+    match /leads/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['nombre', 'whatsapp', 'email', 'marcas', 'rubro', 'createdAt', 'estado'])
+        && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0 && request.resource.data.nombre.size() < 120;
+      allow read, update, delete: if isSuper();
+    }
+
+    match /vendors/{vid} {
+      allow read: if true;
+      allow create: if isOwner(vid)
+        && request.resource.data.status == 'activo'
+        && request.resource.data.plan == 'prueba'
+        && request.resource.data.domainStatus == 'sin';
+      allow update: if isSuper() || (isOwner(vid)
+        && !changed().hasAny(['status', 'plan', 'ownerUid', 'createdAt', 'dnsRecords', 'trialEnds', 'adminNotes'])
+        && (!changed().hasAny(['domainStatus']) || request.resource.data.domainStatus in ['sin', 'pendiente']));
+      allow delete: if isSuper();
+
+      match /brands/{bid} {
+        allow read: if true;
+        allow write: if isOwner(vid) || isSuper();
+      }
+      match /products/{pid} {
+        allow read: if isOwner(vid) || isSuper() || isClient(vid);
+        allow write: if isOwner(vid) || isSuper();
+      }
+      match /clients/{cid} {
+        allow read: if isOwner(vid) || isSuper() || (signedIn() && request.auth.uid == cid);
+        allow create: if isOwner(vid) || isSuper()
+          || (signedIn() && request.auth.uid == cid && request.resource.data.status == 'pendiente');
+        allow update: if isOwner(vid) || isSuper()
+          || (signedIn() && request.auth.uid == cid && !changed().hasAny(['status']));
+        allow delete: if isOwner(vid) || isSuper();
+      }
+      match /orders/{oid} {
+        allow read: if isOwner(vid) || isSuper() || (signedIn() && resource.data.clientId == request.auth.uid);
+        allow create: if isOwner(vid) || isSuper() || (isClient(vid)
+          && request.resource.data.clientId == request.auth.uid
+          && request.resource.data.status == 'recibido'
+          && request.resource.data.origin == 'cliente'
+          && request.resource.data.docs.size() == 0
+          && request.resource.data.commissionPaid == false);
+        allow update, delete: if isOwner(vid) || isSuper();
+      }
+      match /counters/{cid} {
+        allow read: if isOwner(vid) || isSuper() || isClient(vid);
+        allow create: if isOwner(vid) || isSuper() || (isClient(vid) && request.resource.data.n == 1);
+        allow update: if isOwner(vid) || isSuper() || (isClient(vid) && request.resource.data.n == resource.data.n + 1);
+      }
+    }
+  }
+}
